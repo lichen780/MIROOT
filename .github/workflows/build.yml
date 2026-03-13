@@ -25,7 +25,7 @@ jobs:
 
       - name: 编译程序
         run: |
-          cl /EHsc /std:c++20 /O2 main.cpp /link /out:adb-root-tool.exe
+          cl /EHsc /std:c++20 /O2 miroot.cpp /link /out:adb-root-tool.exe
         shell: cmd
 
       - name: 上传编译产物
