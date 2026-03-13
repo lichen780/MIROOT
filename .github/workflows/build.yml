@@ -1,0 +1,35 @@
+name: 自动编译 Windows 程序
+
+on:
+  push:
+    branches: [ main ]  # 推送到 main 分支就触发
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - '**.cc'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 MSVC 编译环境
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: 编译程序
+        run: |
+          cl /EHsc /std:c++20 /O2 main.cpp /link /out:adb-root-tool.exe
+        shell: cmd
+
+      - name: 上传编译产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: adb-root-tool
+          path: adb-root-tool.exe
