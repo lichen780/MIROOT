@@ -293,9 +293,9 @@ void Menu() {
         printf("      +------------------------------------------------------+\n");
         printf("      |                                                      |\n");
         SetColor(GREEN);
-        printf("      |   [1]  设置 SELinux 宽容模式                             |\n");
+        printf("      |   [1]  设置 SELinux 宽容模式                          |\n");
         SetColor(YELLOW);
-        printf("      |   [2]  安装 ROOT 权限                                   |\n");
+        printf("      |   [2]  安装 ROOT 权限                                 |\n");
         SetColor(RED);
         printf("      |   [3]  退出程序                                       |\n");
         SetColor(WHITE);
