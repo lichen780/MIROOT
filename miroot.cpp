@@ -9,12 +9,10 @@
 #include <numeric>
 #include <algorithm>
 #include <sstream>
-#include <regex>
 #include <windows.h>
+#include <string>
 
-#define NOMINMAX
-#include <Windows.h>
-
+using namespace std;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -45,49 +43,48 @@ void ResetColor() {
 }
 
 // 加载动画
-void Loading(const std::string& text) {
+void Loading(const string& text) {
     SetColor(Color::CYAN);
-    std::print("{} ", text);
+    cout << text << " ";
     const char ch[] = "|/-\\";
     for (int i = 0; i < 12; ++i) {
-        std::print("\b{}", ch[i % 4]);
-        std::flush(std::cout);
-        std::this_thread::sleep_for(90ms);
+        cout << "\b" << ch[i % 4];
+        cout.flush();
+        this_thread::sleep_for(90ms);
     }
-    std::print("\b✓\n");
+    cout << "\b✓\n";
     ResetColor();
 }
 
 // 标题界面
-void Title(const std::string& title) {
+void Title(const string& title) {
     system("cls");
     SetColor(Color::PURPLE);
-    std::println("========================================================");
+    println("========================================================");
     SetColor(Color::CYAN);
-    std::println("                   {}", title);
+    println("                   {}", title);
     SetColor(Color::PURPLE);
-    std::println("========================================================\n");
+    println("========================================================\n");
     ResetColor();
 }
 
 // 信息输出
-void OK(const std::string& msg) { SetColor(Color::GREEN); std::println("✅ {}", msg); ResetColor(); }
-void ERR(const std::string& msg) { SetColor(Color::RED); std::println("❌ {}", msg); ResetColor(); }
-void INFO(const std::string& msg) { SetColor(Color::BLUE); std::println("ℹ️  {}", msg); ResetColor(); }
-void WARN(const std::string& msg) { SetColor(Color::YELLOW); std::println("⚠️  {}", msg); ResetColor(); }
+void OK(const string& msg) { SetColor(Color::GREEN); println("✅ {}", msg); ResetColor(); }
+void ERR(const string& msg) { SetColor(Color::RED); println("❌ {}", msg); ResetColor(); }
+void INFO(const string& msg) { SetColor(Color::BLUE); println("ℹ️  {}", msg); ResetColor(); }
+void WARN(const string& msg) { SetColor(Color::YELLOW); println("⚠️  {}", msg); ResetColor(); }
 
 // 等待回车
 void Wait() {
     SetColor(Color::GRAY);
-    std::print("\n按回车键继续...");
-    std::cin.ignore();
+    cout << "\n按回车键继续...";
+    cin.ignore();
     ResetColor();
 }
 
 // 执行命令
-[[maybe_unused]]
-static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<int, std::string> {
-    std::string cmd = std::format("{} {} 2>&1", bin, args);
+static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
+    string cmd = format("{} {} 2>&1", bin, args);
     FILE* pipe = _popen(cmd.c_str(), "r");
 
     if (!pipe) {
@@ -95,7 +92,7 @@ static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<
         return { e, strerror(e) };
     }
 
-    std::string out;
+    string out;
     char buf[1024];
     while (fgets(buf, sizeof(buf), pipe)) out += buf;
 
@@ -115,20 +112,24 @@ void OnExit() {
     KillAdbFastboot();
 }
 
-// ===================== 【终极精准】检测设备序列号（唯一标准） =====================
+// ===================== 【无正则 稳定版】精准检测设备序列号 =====================
 bool CheckDeviceSerial() {
     auto [code, output] = Exec(adb_bin.string(), "devices");
-    std::istringstream iss(output);
-    std::string line;
+    istringstream iss(output);
+    string line;
     
     while (getline(iss, line)) {
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
         
-        // 匹配 10-17位 设备序列号（所有安卓手机标准）
-        regex reg(R"([0-9a-zA-Z]{10,17})");
-        smatch match;
-        if (regex_search(line, match, reg) && line.find("device") != string::npos) {
+        // 核心判断：有序列号(长度≥10) + 状态为device
+        size_t space_pos = line.find(" ");
+        if (space_pos == string::npos) continue;
+        
+        string serial = line.substr(0, space_pos);
+        string status = line.substr(space_pos);
+        
+        if (serial.length() >= 10 && status.find("device") != string::npos) {
             return true;
         }
     }
@@ -143,7 +144,7 @@ void WaitForDeviceLoop() {
             OK("设备已成功连接！");
             break;
         }
-        std::this_thread::sleep_for(3s);
+        this_thread::sleep_for(3s);
     }
 }
 
@@ -155,16 +156,16 @@ void ShowDeviceInfo() {
     auto [___, android] = Exec(adb_bin.string(), "shell getprop ro.build.version.release");
     auto [____, cpu] = Exec(adb_bin.string(), "shell getprop ro.product.board");
 
-    brand.erase(remove_if(brand.begin(), brand.end(), isspace), brand.end());
-    model.erase(remove_if(model.begin(), model.end(), isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), isspace), android.end());
-    cpu.erase(remove_if(cpu.begin(), cpu.end(), isspace), cpu.end());
+    brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
+    model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
+    cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
 
     SetColor(Color::YELLOW);
-    std::println("📱 手机品牌：{}", brand);
-    std::println("📱 手机型号：{}", model);
-    std::println("🤖 安卓版本：{}", android);
-    std::println("⚙️  处理器：{}\n", cpu);
+    println("📱 手机品牌：{}", brand);
+    println("📱 手机型号：{}", model);
+    println("🤖 安卓版本：{}", android);
+    println("⚙️  处理器：{}\n", cpu);
     ResetColor();
 }
 
@@ -210,7 +211,7 @@ bool Func1_SetSELinux() {
 
     Loading("检查SELinux状态");
     auto [c5, o5] = Exec(adb_bin.string(), "shell getenforce");
-    if (c5 != 0 || o5.find("Permissive") == std::string::npos) {
+    if (c5 != 0 || o5.find("Permissive") == string::npos) {
         ERR("SELinux 设置失败！");
         return false;
     }
@@ -227,15 +228,15 @@ bool Func2_InstallRoot() {
     ShowDeviceInfo();
 
     Loading("推送ROOT组件");
-    Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksud", ksud.string()));
+    Exec(adb_bin.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
     Exec(adb_bin.string(), "shell chmod 755 /data/local/tmp/ksud");
 
     Loading("启动ROOT守护进程");
     Exec(adb_bin.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' s16 '/data/local/tmp/ksud-log.txt' i32 60");
-    std::this_thread::sleep_for(3s);
+    this_thread::sleep_for(3s);
 
     auto [c4, o4] = Exec(adb_bin.string(), "shell grep 'kernelsu' /proc/modules");
-    if (c4 != 0 || o4.find("kernelsu") == std::string::npos) {
+    if (c4 != 0 || o4.find("kernelsu") == string::npos) {
         ERR("ROOT模块加载失败！");
         return false;
     }
@@ -245,7 +246,7 @@ bool Func2_InstallRoot() {
     Exec(adb_bin.string(), "shell pm uninstall me.weishu.kernelsu");
 
     Loading("安装ROOT管理器");
-    Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksu.apk", ksum.string()));
+    Exec(adb_bin.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
     Exec(adb_bin.string(), "shell pm install -r /data/local/tmp/ksu.apk");
 
     WARN("请打开 KernelSU → 超级用户 → 允许 Shell ROOT权限");
@@ -254,7 +255,7 @@ bool Func2_InstallRoot() {
     while (true) {
         Loading("检查ROOT授权");
         auto [r, o] = Exec(adb_bin.string(), "shell su -c 'id -u'");
-        if (o.find('0') != std::string::npos) {
+        if (o.find('0') != string::npos) {
             OK("ROOT授权成功！");
             break;
         }
@@ -265,7 +266,7 @@ bool Func2_InstallRoot() {
     Loading("恢复SELinux为安全模式");
     Exec(adb_bin.string(), "shell su -c 'setenforce 1'");
     auto [rr, oo] = Exec(adb_bin.string(), "shell getenforce");
-    if (oo.find("Enforcing") == std::string::npos) {
+    if (oo.find("Enforcing") == string::npos) {
         ERR("SELinux恢复失败");
         return false;
     }
@@ -284,35 +285,35 @@ void Menu() {
         system("cls");
         SetColor(Color::CYAN);
 
-        std::println("  _   _  _   _    ____   _      ___  _   _  ");
-        std::println(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | ");
-        std::println(" |  \\| || | | |  | |_) || |     | | |  \\| | ");
-        std::println(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | ");
-        std::println(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| ");
-        std::println("                ___   ___  ___   ");
-        std::println("               | _ \\ | _ \\| _ \\  ");
-        std::println("               |  _/ |  _/|  _/  ");
-        std::println("               |_|   |_|  |_|    ");
+        println("  _   _  _   _    ____   _      ___  _   _  ");
+        println(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | ");
+        println(" |  \\| || | | |  | |_) || |     | | |  \\| | ");
+        println(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | ");
+        println(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| ");
+        println("                ___   ___  ___   ");
+        println("               | _ \\ | _ \\| _ \\  ");
+        println("               |  _/ |  _/|  _/  ");
+        println("               |_|   |_|  |_|    ");
 
         SetColor(Color::PURPLE);
-        std::println("========================================================");
+        println("========================================================");
         SetColor(Color::YELLOW);
-        std::println("                 免解BL ROOT 工具");
+        println("                 免解BL ROOT 工具");
         SetColor(Color::PURPLE);
-        std::println("========================================================");
+        println("========================================================");
         ResetColor();
 
-        std::println("");
-        std::println("  [1] 设置SELinux宽容");
-        std::println("  [2] 安装ROOT权限");
-        std::println("  [3] 退出程序");
-        std::println("");
+        println("");
+        println("  [1] 设置SELinux宽容");
+        println("  [2] 安装ROOT权限");
+        println("  [3] 退出程序");
+        println("");
         SetColor(Color::GRAY);
-        std::print("请选择功能 >> ");
+        cout << "请选择功能 >> ";
         ResetColor();
 
-        std::string s;
-        std::getline(std::cin, s);
+        string s;
+        getline(cin, s);
 
         if (s == "1") { if (Check1()) Func1_SetSELinux(); else system("pause"); }
         if (s == "2") { if (Check2()) Func2_InstallRoot(); else system("pause"); }
@@ -321,7 +322,7 @@ void Menu() {
             break;
         }
 
-        std::this_thread::sleep_for(300ms);
+        this_thread::sleep_for(300ms);
     }
 }
 
