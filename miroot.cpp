@@ -116,13 +116,13 @@ bool DownloadADB() {
 
 bool ExtractADB() {
     INFO("正在解压至 adb 文件夹...");
-    
+
     if (!fs::exists(ADB_DIR))
         fs::create_directory(ADB_DIR);
 
-    string cmd = "powershell -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\"";
+    string cmd = "powershell -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\" >nul 2>&1";
     system(cmd.c_str());
-    this_thread::sleep_for(6s);
+    Sleep(6000);
 
     fs::path extracted = ADB_DIR / "platform-tools";
     if (fs::exists(extracted)) {
@@ -134,7 +134,7 @@ bool ExtractADB() {
         fs::remove_all(extracted);
     }
 
-    OK("ADB 已正确解压到 adb 文件夹！");
+    OK("ADB 解压完成！");
     return true;
 }
 
