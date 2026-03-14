@@ -28,21 +28,23 @@ jobs:
           cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
         shell: cmd
 
-      # MPRESS 压缩（绝对不报错）
-      - name: 下载 MPRESS 并压缩
+      # ==================== 自动获取最新 UPX 64 位 ====================
+      - name: 自动下载最新版 UPX (win64)
         run: |
-          powershell "Invoke-WebRequest 'https://www.matcode.com/mprss64.zip' -OutFile 'mpress.zip'"
-          powershell "Expand-Archive mpress.zip -Force"
-          mpress64\mpress64.exe -s "免解 BL ROOT 工具.exe"
-          del /q mpress.zip
-          rmdir /s /q mpress64
+          powershell -Command "$latest = (Invoke-WebRequest 'https://api.github.com/repos/upx/upx/releases/latest' -UseBasicParsing | ConvertFrom-Json).tag_name; Invoke-WebRequest -Uri \"https://github.com/upx/upx/releases/download/$latest/upx-$latest-win64.zip\" -OutFile 'upx.zip' -UseBasicParsing"
+          powershell -Command "Expand-Archive upx.zip -DestinationPath . -Force"
+          cd upx-*-win64
+          upx.exe --best -f "../免解 BL ROOT 工具.exe"
+          cd ..
+          del /q upx.zip
+          rmdir /s /q upx-*-win64
         shell: cmd
 
-      - name: 提交编译结果
+      - name: 提交编译产物
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add "免解 BL ROOT 工具.exe"
-          git commit -m "自动编译程序"
+          git commit -m "CI: 自动编译" --allow-empty
           git push
         shell: bash
