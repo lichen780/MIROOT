@@ -29,19 +29,123 @@ const string ZIP_FILE = "platform-tools.zip";
 
 fs::path ksum = cwd / "KernelSU.apk";
 
+// 颜色定义
 enum Color {
     RED = 12, GREEN = 10, YELLOW = 14, BLUE = 9,
-    PURPLE = 13, CYAN = 11, WHITE = 15, GRAY = 8
+    PURPLE = 13, CYAN = 11, WHITE = 15, GRAY = 8,
+    BLACK = 0
 };
 
+// 全局变量用于控制光标位置
+HANDLE hOut;
+CONSOLE_SCREEN_BUFFER_INFO csbiInfo;
+
+// 设置光标位置
+void SetCursorPosition(int x, int y) {
+    COORD coord;
+    coord.X = x;
+    coord.Y = y;
+    SetConsoleCursorPosition(hOut, coord);
+}
+
+// 设置文字颜色
 void SetColor(int color) {
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
+    SetConsoleTextAttribute(hOut, color);
 }
 
 void ResetColor() {
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    SetConsoleTextAttribute(hOut, 15);
 }
 
+// 绘制像素风格边框
+void DrawBorder() {
+    // 获取窗口大小
+    GetConsoleScreenBufferInfo(hOut, &csbiInfo);
+    int screenWidth = csbiInfo.srWindow.Right - csbiInfo.srWindow.Left + 1;
+    int screenHeight = csbiInfo.srWindow.Bottom - csbiInfo.srWindow.Top + 1;
+
+    // 外框大小
+    int boxWidth = 60;
+    int boxHeight = 15;
+    int startX = (screenWidth - boxWidth) / 2;
+    int startY = (screenHeight - boxHeight) / 2 - 3; // 上移一点
+
+    SetColor(CYAN);
+    // 绘制外框
+    for (int i = 0; i < boxWidth; i++) {
+        SetCursorPosition(startX + i, startY);
+        printf("-");
+        SetCursorPosition(startX + i, startY + boxHeight - 1);
+        printf("-");
+    }
+    for (int i = 0; i < boxHeight; i++) {
+        SetCursorPosition(startX, startY + i);
+        printf("|");
+        SetCursorPosition(startX + boxWidth - 1, startY + i);
+        printf("|");
+    }
+    // 绘制四角
+    SetCursorPosition(startX, startY); printf("+");
+    SetCursorPosition(startX + boxWidth - 1, startY); printf("+");
+    SetCursorPosition(startX, startY + boxHeight - 1); printf("+");
+    SetCursorPosition(startX + boxWidth - 1, startY + boxHeight - 1); printf("+");
+    
+    ResetColor();
+}
+
+// 绘制带特效的ROOT文字
+void DrawRootText() {
+    GetConsoleScreenBufferInfo(hOut, &csbiInfo);
+    int screenWidth = csbiInfo.srWindow.Right - csbiInfo.srWindow.Left + 1;
+    int startX = (screenWidth - 40) / 2; // 文字居中
+    int startY = 2;
+
+    // 随机颜色数组
+    int colors[] = { CYAN, GREEN, BLUE, WHITE, PURPLE };
+    int colorCount = 5;
+
+    // 模拟扫描线/发光效果
+    static int tick = 0;
+    tick++;
+    
+    string rootText = "          ██████╗  ██████╗  ██████╗ ████████╗        ";
+    string rootText2 = "          ██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝        ";
+    string rootText3 = "          ██████╔╝██║   ██║██║   ██║   ██║           ";
+    string rootText4 = "          ██╔══██╗██║   ██║██║   ██║   ██║           ";
+    string rootText5 = "          ██║  ██║╚██████╔╝╚██████╔╝   ██║           ";
+    string rootText6 = "          ╚═╝  ╚═╝ ╚═════╝  ╚═════╝    ╚═╝           ";
+
+    // 每帧随机改变颜色
+    int c1 = colors[rand() % colorCount];
+    int c2 = colors[rand() % colorCount];
+    int c3 = colors[rand() % colorCount];
+
+    // 动态闪烁效果
+    if (tick % 2 == 0) {
+        SetColor(c1); SetCursorPosition(startX, startY); printf("%s\n", rootText.c_str());
+        SetColor(c2); SetCursorPosition(startX, startY+1); printf("%s\n", rootText2.c_str());
+        SetColor(c3); SetCursorPosition(startX, startY+2); printf("%s\n", rootText3.c_str());
+        SetColor(c1); SetCursorPosition(startX, startY+3); printf("%s\n", rootText4.c_str());
+        SetColor(c2); SetCursorPosition(startX, startY+4); printf("%s\n", rootText5.c_str());
+        SetColor(c3); SetCursorPosition(startX, startY+5); printf("%s\n", rootText6.c_str());
+    } else {
+        SetColor(WHITE); SetCursorPosition(startX, startY); printf("%s\n", rootText.c_str());
+        SetColor(CYAN); SetCursorPosition(startX, startY+1); printf("%s\n", rootText2.c_str());
+        SetColor(GREEN); SetCursorPosition(startX, startY+2); printf("%s\n", rootText3.c_str());
+        SetColor(WHITE); SetCursorPosition(startX, startY+3); printf("%s\n", rootText4.c_str());
+        SetColor(CYAN); SetCursorPosition(startX, startY+4); printf("%s\n", rootText5.c_str());
+        SetColor(GREEN); SetCursorPosition(startX, startY+5); printf("%s\n", rootText6.c_str());
+    }
+
+    // 副标题
+    SetColor(CYAN);
+    SetCursorPosition((screenWidth - 20) / 2, startY + 7);
+    printf("免解锁BL ROOT工具\n");
+    
+    ResetColor();
+}
+
+// 加载动画
 void Loading(const string& text) {
     SetColor(CYAN);
     printf("%s ", text.c_str());
@@ -55,15 +159,13 @@ void Loading(const string& text) {
     ResetColor();
 }
 
+// 标题界面（包含边框和文字）
 void Title(const string& title) {
     system("cls");
-    SetColor(PURPLE);
-    printf("========================================================\n");
-    SetColor(CYAN);
-    printf("                  免解 BL ROOT 工具\n");
-    SetColor(PURPLE);
-    printf("========================================================\n\n");
-    ResetColor();
+    // 重新获取窗口大小
+    hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DrawBorder();
+    DrawRootText();
 }
 
 void OK(const string& msg) {
@@ -258,99 +360,4 @@ bool Func1_SetSELinux() {
     PressAnyKeyBack();
 
     Loading("设置 SELinux 为宽容");
-    Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
-
-    Loading("重启系统");
-    Exec(FASTBOOT_EXE.string(), "continue");
-    INFO("开机后按回车");
-    PressAnyKeyBack();
-
-    OK("SELinux 设置完成！");
-    PressAnyKeyBack();
-    return true;
-}
-
-bool Func2_InstallRoot() {
-    Title("免解BL - 安装ROOT权限");
-    WaitForDeviceLoop();
-    ShowDeviceInfo();
-
-    if (IsKsuInstalled()) {
-        WARN("检测到手机已安装 KernelSU 管理器！");
-        SetColor(CYAN);
-        printf("\n是否覆盖安装？[Y] 覆盖 / [N] 取消：");
-        ResetColor();
-
-        string choice;
-        getline(cin, choice);
-        if (choice != "Y" && choice != "y") {
-            INFO("已取消安装");
-            PressAnyKeyBack();
-            return true;
-        }
-        INFO("准备覆盖安装 KernelSU");
-    }
-
-    Loading("安装 KernelSU 管理器");
-    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/KernelSU.apk", ksum.string()));
-    Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/KernelSU.apk");
-
-    OK("ROOT 安装完成！请打开 KernelSU 授权");
-    PressAnyKeyBack();
-    return true;
-}
-
-void Menu() {
-    while (true) {
-        system("cls");
-        SetColor(CYAN);
-        printf("\n\n");
-        printf("      ╔════════════════════════════════════════════════════╗\n");
-        printf("      ║                                                    ║\n");
-        printf("      ║        ██████╗  ██████╗  ██████╗ ████████╗         ║\n");
-        printf("      ║        ██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝         ║\n");
-        printf("      ║        ██████╔╝██║   ██║██║   ██║   ██║            ║\n");
-        printf("      ║        ██╔══██╗██║   ██║██║   ██║   ██║            ║\n");
-        printf("      ║        ██║  ██║╚██████╔╝╚██████╔╝   ██║            ║\n");
-        printf("      ║        ╚═╝  ╚═╝ ╚═════╝  ╚═════╝    ╚═╝            ║\n");
-        printf("      ║                                                    ║\n");
-        printf("      ║              免解锁BL ROOT工具                      ║\n");
-        printf("      ║                                                    ║\n");
-        printf("      ╚════════════════════════════════════════════════════╝\n");
-        printf("\n");
-
-        SetColor(WHITE);
-        printf("      +------------------------------------------------------+\n");
-        printf("      |                                                      |\n");
-        SetColor(GREEN);
-        printf("      |   [1]  设置 SELinux 宽容模式                          |\n");
-        SetColor(YELLOW);
-        printf("      |   [2]  安装 ROOT 权限                                 |\n");
-        SetColor(RED);
-        printf("      |   [3]  退出程序                                       |\n");
-        SetColor(WHITE);
-        printf("      |                                                      |\n");
-        printf("      +------------------------------------------------------+\n");
-        printf("\n");
-
-        SetColor(CYAN);
-        printf("      > 请输入选项 [1-3]: ");
-        ResetColor();
-
-        string s;
-        getline(cin, s);
-
-        if (s == "1") { if (Check1()) Func1_SetSELinux(); }
-        if (s == "2") { if (Check2()) Func2_InstallRoot(); }
-        if (s == "3") { KillAdbFastboot(); break; }
-    }
-}
-
-int main() {
-    system("chcp 65001 >nul");
-    SetConsoleTitleW(L"\u514D\u89E3BL ROOT \u5DE5\u5177");
-    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-    AutoSetupADB();
-    Menu();
-    return 0;
-}
+    Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive
