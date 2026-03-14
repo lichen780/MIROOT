@@ -7,370 +7,317 @@
 #include <thread>
 #include <cstdio>
 #include <numeric>
+#include <vector>
 
 #define NOMINMAX
 #include <Windows.h>
-
 
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 const auto cwd = fs::current_path();
-auto adb_bin = cwd / "adb" / "adb.exe";
-auto fastboot_bin = cwd / "adb" / "fastboot.exe";
-auto ksum = cwd / "ksu.apk";
-auto ksud = cwd / "ksud";
+fs::path adb_bin = cwd / "adb" / "adb.exe";
+fs::path fastboot_bin = cwd / "adb" / "fastboot.exe";
+fs::path ksum = cwd / "ksu.apk";
+fs::path ksud = cwd / "ksud";
 
+// 颜色输出
+enum class Color {
+    RED = 12,
+    GREEN = 10,
+    YELLOW = 14,
+    BLUE = 9,
+    PURPLE = 13,
+    CYAN = 11,
+    WHITE = 15,
+    GRAY = 8
+};
+
+void SetColor(Color color) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), static_cast<WORD>(color));
+}
+
+void ResetColor() {
+    SetColor(Color::WHITE);
+}
+
+// 加载动画
+void LoadingAnimation(const std::string& text, int ms = 1200) {
+    SetColor(Color::CYAN);
+    std::print("{} ", text);
+    const char chars[] = { '|', '/', '-', '\\' };
+    for (int i = 0; i < ms / 80; ++i) {
+        std::print("\b{}", chars[i % 4]);
+        std::flush(std::cout);
+        std::this_thread::sleep_for(80ms);
+    }
+    std::print("\b✓\n");
+    ResetColor();
+}
+
+// 标题分隔条
+void ShowTitle(const std::string& title) {
+    system("cls");
+    SetColor(Color::PURPLE);
+    std::println("========================================================");
+    SetColor(Color::CYAN);
+    std::println("               {}", title);
+    SetColor(Color::PURPLE);
+    std::println("========================================================\n");
+    ResetColor();
+}
+
+// 成功/失败信息
+void Success(const std::string& msg) {
+    SetColor(Color::GREEN);
+    std::println("✅ {}", msg);
+    ResetColor();
+}
+
+void Error(const std::string& msg) {
+    SetColor(Color::RED);
+    std::println("❌ {}", msg);
+    ResetColor();
+}
+
+void Info(const std::string& msg) {
+    SetColor(Color::BLUE);
+    std::println("ℹ️  {}", msg);
+    ResetColor();
+}
+
+void Warn(const std::string& msg) {
+    SetColor(Color::YELLOW);
+    std::println("⚠️  {}", msg);
+    ResetColor();
+}
+
+// 等待回车
+void WaitEnter() {
+    SetColor(Color::GRAY);
+    std::print("\n请按回车键继续...");
+    std::cin.ignore();
+    ResetColor();
+}
+
+// 执行命令
 [[maybe_unused]]
-static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<int, std::string>
-{
-	std::string cmd = std::format("{} {} 2>&1", bin, args);
-	FILE* pipe = _popen(cmd.c_str(), "r");
+static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<int, std::string> {
+    std::string cmd = std::format("{} {} 2>&1", bin, args);
+    FILE* pipe = _popen(cmd.c_str(), "r");
 
-	if (!pipe)
-	{
-		int error_code = errno;
-		return { error_code, strerror(error_code) };
-	}
+    if (!pipe) {
+        int error_code = errno;
+        return { error_code, strerror(error_code) };
+    }
 
-	std::string output;
-	char buffer[1024];
-	while (true)
-	{
-		if (fgets(buffer, sizeof(buffer), pipe) == nullptr)
-		{
-			if (ferror(pipe))
-			{
-				std::println("读取命令输出失败：{}", ferror(pipe));
-			}
-			break;
-		}
-		output += buffer;
-	}
+    std::string output;
+    char buffer[1024];
+    while (true) {
+        if (fgets(buffer, sizeof(buffer), pipe) == nullptr) {
+            if (ferror(pipe)) std::println("读取命令输出失败：{}", ferror(pipe));
+            break;
+        }
+        output += buffer;
+    }
 
-	int exit_code = _pclose(pipe);
-	if (exit_code != 0)
-	{
-		std::println("命令执行返回非零退出码：{}", exit_code);
-		std::println("命令输出：\n{}", output);
-	}
-	return { exit_code, output };
+    int exit_code = _pclose(pipe);
+    if (exit_code != 0) {
+        Error(std::format("命令执行失败，退出码：{}", exit_code));
+        if (!output.empty()) std::println("输出：\n{}", output);
+    }
+    return { exit_code, output };
 }
 
-static auto Step1() -> bool
-{
-	std::cout <<
-		"========================================\n"
-		"   第一步：准备进入 Fastboot 模式\n"
-		"========================================\n"
-		"📱 请完成以下操作：\n"
-		"  1.打开开发者模式（设置 - 关于手机 - 连续点击版本号）\n"
-		"  2.解锁手机并进入系统桌面\n"
-		"  3.确保手机已连接电脑并允许 USB 调试\n"
-		"✅ 确认后按回车键继续...";
-
-	std::string tmp;
-	std::getline(std::cin, tmp); (void)tmp;
-
-	std::println("🔍 正在检测已连接的设备...");
-	const auto r1 = Exec(adb_bin.string(), "devices");
-	if (std::get<0>(r1) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		return false;
-	}
-
-	std::println("🔄 正在重启设备进入 Fastboot 模式...");
-	const auto r2 = Exec(adb_bin.string(), "reboot bootloader");
-	if (std::get<0>(r2) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r2));
-		return false;
-	}
-
-	return true;
+// ===================== 静默文件检查 =====================
+bool CheckPhase1Files() {
+    if (!fs::exists(adb_bin)) {
+        Error("缺少 adb 文件");
+        return false;
+    }
+    if (!fs::exists(fastboot_bin)) {
+        Error("缺少 fastboot 文件");
+        return false;
+    }
+    return true;
 }
 
-static auto Step2() -> bool
-{
-	std::cout <<
-		"\n========================================\n"
-		"   第二步：宽容 SELinux\n"
-		"========================================\n"
-		"📱 请确认设备已进入 Fastboot 模式（屏幕显示 Fastboot 字样）\n"
-		"✅ 确认后按回车键继续...";
-
-	std::string tmp;
-	std::getline(std::cin, tmp); (void)tmp;
-
-	std::println("⚙️ 正在通过漏洞设置 SELinux 为 Permissive...");
-	const auto r1 = Exec(fastboot_bin.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
-	if (std::get<0>(r1) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		return false;
-	}
-
-	std::println("🚀 正在引导设备进入系统...");
-	const auto r2 = Exec(fastboot_bin.string(), "continue");
-	if (std::get<0>(r2) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r2));
-		return false;
-	}
-
-	return true;
+bool CheckPhase2Files() {
+    if (!fs::exists(adb_bin)) {
+        Error("缺少 adb 文件");
+        return false;
+    }
+    if (!fs::exists(fastboot_bin)) {
+        Error("缺少 fastboot 文件");
+        return false;
+    }
+    if (!fs::exists(ksud)) {
+        Error("缺少 ksud 文件");
+        return false;
+    }
+    if (!fs::exists(ksum)) {
+        Error("缺少 ksu.apk 文件");
+        return false;
+    }
+    return true;
 }
 
-static auto Step3() -> bool
-{
-	std::cout <<
-		"\n========================================\n"
-		"   第三步：检查 SELinux 状态\n"
-		"========================================\n"
-		"📱 请确认设备已开机\n"
-		"✅ 确认后按回车键继续...";
+// ===================== 功能1：设置SELinux宽容 =====================
+bool SetSELinuxPermissive() {
+    ShowTitle("设置 SELinux 为宽容模式");
+    Info("请完成以下操作：");
+    std::println("  1. 打开开发者模式与USB调试");
+    std::println("  2. 解锁手机进入桌面");
+    std::println("  3. 连接电脑并允许调试授权");
+    WaitEnter();
 
-	std::string tmp;
-	std::getline(std::cin, tmp); (void)tmp;
+    LoadingAnimation("正在检测设备...");
+    auto r1 = Exec(adb_bin.string(), "devices");
+    if (get<0>(r1) != 0) return false;
 
-	std::println("⚙️ 等待设备连接...");
-	Exec(adb_bin.string(), "wait-for-device");
+    LoadingAnimation("正在重启进入 Fastboot...");
+    auto r2 = Exec(adb_bin.string(), "reboot bootloader");
+    if (get<0>(r2) != 0) return false;
 
-	std::println("⚙️ 检查 SELinux 状态...");
-	const auto r1 = Exec(adb_bin.string(), "shell getenforce");
-	if (std::get<0>(r1) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		return false;
-	}
+    Info("请确认设备已进入 Fastboot 模式");
+    WaitEnter();
 
-	if (std::get<1>(r1).find("Permissive") == std::string::npos)
-	{
-		std::println("❌ SELinux 仍处于 Enforcing 模式，可能是漏洞利用失败了！");
-		return false;
-	}
+    LoadingAnimation("正在设置 SELinux 为 Permissive...");
+    auto r3 = Exec(fastboot_bin.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
+    if (get<0>(r3) != 0) return false;
 
-	std::println("✅ SELinux 已成功设置为 Permissive 模式！");
-	return true;
+    LoadingAnimation("正在开机...");
+    auto r4 = Exec(fastboot_bin.string(), "continue");
+    if (get<0>(r4) != 0) return false;
+
+    Info("请等待设备完全开机");
+    WaitEnter();
+    LoadingAnimation("等待设备连接...");
+    Exec(adb_bin.string(), "wait-for-device");
+
+    LoadingAnimation("正在检查 SELinux 状态...");
+    auto r5 = Exec(adb_bin.string(), "shell getenforce");
+    if (get<0>(r5) != 0 || get<1>(r5).find("Permissive") == string::npos) {
+        Error("SELinux 设置失败！");
+        return false;
+    }
+
+    Success("SELinux 已成功设置为宽容模式！");
+    system("pause >nul");
+    return true;
 }
 
-static auto Step4() -> bool
-{
-	std::cout <<
-		"\n========================================\n"
-		"   第四步：部署 KernelSU\n"
-		"========================================\n"
-		"📱 请打开锁屏并进入桌面\n"
-		"📱 如果弹出安装提示，请点击安装\n"
-		"✅ 确认后按回车键继续...";
+// ===================== 功能2：安装KernelSU =====================
+bool InstallKernelSU() {
+    ShowTitle("安装 KernelSU 完整流程");
 
-	std::string tmp;
-	std::getline(std::cin, tmp); (void)tmp;
+    Info("请打开锁屏并进入桌面，允许安装应用");
+    WaitEnter();
+    LoadingAnimation("等待设备连接...");
+    Exec(adb_bin.string(), "wait-for-device");
 
-	std::println("⚙️ 等待设备连接...");
-	Exec(adb_bin.string(), "wait-for-device");
+    LoadingAnimation("正在推送 ksud 组件...");
+    Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksud", ksud.string()));
+    Exec(adb_bin.string(), "shell chmod 755 /data/local/tmp/ksud");
 
-	std::println("推送 KernelSU Daemon 到 /data/local/tmp/ksud");
-	const auto r1 = Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksud", ksud.string()));
-	if (std::get<0>(r1) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		return false;
-	}
+    LoadingAnimation("正在启动 KernelSU 守护进程...");
+    Exec(adb_bin.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' s16 '/data/local/tmp/ksud-log.txt' i32 60");
+    std::this_thread::sleep_for(3s);
 
-	std::println("赋予 KernelSU Daemon 可执行权限...");
-	const auto r2 = Exec(adb_bin.string(), "shell chmod 755 /data/local/tmp/ksud");
-	if (std::get<0>(r2) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r2));
-		return false;
-	}
+    auto r4 = Exec(adb_bin.string(), "shell grep 'kernelsu' /proc/modules");
+    if (get<0>(r4) != 0 || get<1>(r4).find("kernelsu") == string::npos) {
+        Error("KernelSU 模块加载失败！");
+        return false;
+    }
+    Success("内核模块加载成功！");
 
-	std::println("执行 ksud late-load...");
-	const auto r3 = Exec(adb_bin.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' s16 '/data/local/tmp/ksud-log.txt' i32 60");
-	if (std::get<0>(r3) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r3));
-		return false;
-	}
+    LoadingAnimation("正在卸载旧版管理器...");
+    Exec(adb_bin.string(), "shell pm uninstall me.weishu.kernelsu");
 
-	std::println("等待 KernelSU Daemon 启动...");
-	std::this_thread::sleep_for(3s);
+    LoadingAnimation("正在安装新版 KernelSU 管理器...");
+    Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksu.apk", ksum.string()));
+    Exec(adb_bin.string(), "shell pm install -r /data/local/tmp/ksu.apk");
 
-	std::println("获取内核模块载入情况...");
-	const auto r4 = Exec(adb_bin.string(), "shell grep 'kernelsu' /proc/modules");
-	if (std::get<0>(r4) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r4));
-		return false;
-	}
+    Warn("请打开 KernelSU → 超级用户 → 授予 Shell Root 权限");
+    WaitEnter();
+    LoadingAnimation("等待授权...");
+    Exec(adb_bin.string(), "wait-for-device");
 
-	std::println("检查 KernelSU Daemon 是否成功启动...");
-	if (std::get<1>(r4).find("kernelsu") == std::string::npos)
-	{
-		std::println("❌ KernelSU Daemon 启动失败！");
-		return false;
-	}
+    while (true) {
+        auto r = Exec(adb_bin.string(), "shell su -c 'id -u'");
+        if (get<1>(r).find('0') != string::npos) {
+            Success("Root 授权成功！");
+            break;
+        }
+        Error("请在 KernelSU 中授权后重试");
+        WaitEnter();
+    }
 
-	std::println("检查 KernelSU Manager 的安装情况...");
-	const auto r5 = Exec(adb_bin.string(), "shell pm path me.weishu.kernelsu");
-	if (std::get<0>(r5) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r5));
-		return false;
-	}
+    LoadingAnimation("正在恢复 SELinux 为强制模式...");
+    Exec(adb_bin.string(), "shell su -c 'setenforce 1'");
+    auto r2 = Exec(adb_bin.string(), "shell getenforce");
+    if (get<1>(r2).find("Enforcing") == string::npos) {
+        Error("SELinux 恢复失败！");
+        return false;
+    }
+    Success("SELinux 已恢复为强制模式！");
 
-	if (std::get<1>(r5) != "")
-	{
-		std::println("✅ 已安装 KernelSU Manager，路径：{}", std::get<1>(r5));
-		std::println("🚀 正在卸载已安装的 KernelSU Manager...");
-		const auto r6 = Exec(adb_bin.string(), "shell pm uninstall me.weishu.kernelsu");
-		if (std::get<0>(r6) != 0)
-		{
-			std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r6));
-			return false;
-		}
-		std::println("✅ 已成功卸载旧版本的 KernelSU Manager！");
-	}
-
-	std::println("🚀 安装新的 KernelSU Manager...");
-	std::println("推送 KernelSU Manager 到 /data/local/tmp/ksu.apk");
-	const auto r7 = Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksu.apk", ksum.string()));
-	if (std::get<0>(r7) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r7));
-		return false;
-	}
-
-	std::println("安装 KernelSU Manager...");
-	const auto r8 = Exec(adb_bin.string(), "shell pm install -r /data/local/tmp/ksu.apk");
-	if (std::get<0>(r8) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r8));
-		return false;
-	}
-
-	return true;
+    Success("\n🎉 KernelSU 安装完成！");
+    Info("正在启动 KernelSU 管理器...");
+    Exec(adb_bin.string(), "shell am start -S me.weishu.kernelsu");
+    system("pause >nul");
+    return true;
 }
 
-static auto Step5() -> bool
-{
-	std::cout <<
-		"\n========================================\n"
-		"   第五步：强制 SELinux\n"
-		"========================================\n"
-		"📱 请打开 KernelSU Manager 进入超级用户页面搜索 Shell 并授予 root 权限\n"
-		"✅ 授权后按任意键继续...";
+// ===================== 主菜单 =====================
+void ShowMainMenu() {
+    while (true) {
+        system("cls");
+        SetColor(Color::CYAN);
+        std::println("  _  __                      _ ____        _    ");
+        std::println(" | |/ /___ _ __ _ __   ____| / ___| _   _| |__ ");
+        std::println(" | ' // _ \\ '__| '_ \\ / _ \\ \\___ \\| | | | '_ \\");
+        std::println(" | . \\  __/ |  | | | |  __/ |___) | |_| | |_) |");
+        std::println(" |_|\\_\\___|_|  |_| |_|\\___|_|____/ \\__,_|_.__/ \n");
 
-	std::string tmp;
-	std::getline(std::cin, tmp); (void)tmp;
+        SetColor(Color::PURPLE);
+        std::println("========================================================");
+        SetColor(Color::YELLOW);
+        std::println("                  KernelSU 一键工具");
+        SetColor(Color::PURPLE);
+        std::println("========================================================");
+        ResetColor();
 
-	std::println("⚙️ 等待设备连接...");
-	Exec(adb_bin.string(), "wait-for-device");
+        std::println("");
+        std::println("  [1] 设置手机 SELinux 宽容");
+        std::println("  [2] 安装 KernelSU");
+        std::println("  [3] 退出程序");
+        std::println("");
+        SetColor(Color::GRAY);
+        std::print("请输入选项 >> ");
+        ResetColor();
 
-	while (true)
-	{
-		std::println("🔍 正在验证 shell 是否已获得 root 权限...");
-		const auto r1 = Exec(adb_bin.string(), "shell su -c 'id -u'");
-		if (std::get<1>(r1).find_first_of('0') == std::string::npos)
-		{
-			std::println("❌ Shell 仍未获得 root 权限，请确认已正确授权！");
-			std::print("✅ 请授权后按任意键继续...");
-			std::getline(std::cin, tmp); (void)tmp;
-			continue;
-		}
+        std::string input;
+        std::getline(std::cin, input);
 
-		std::println("✅ Shell 已成功获得 root 权限！");
-		break;
-	}
-
-	std::println("🚀 将 SELinux 状态设置为 Enforcing...");
-	const auto r1 = Exec(adb_bin.string(), "shell su -c 'setenforce 1'");
-	if (std::get<0>(r1) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		return false;
-	}
-
-	std::println("⚙️ 检查 SELinux 状态...");
-	auto r2 = Exec(adb_bin.string(), "shell getenforce");
-	if (std::get<0>(r2) != 0)
-	{
-		std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r2));
-		return false;
-	}
-
-	if (std::get<1>(r2).find("Enforcing") == std::string::npos)
-	{
-		std::println("❌ SELinux 仍处于 Permissive 模式！");
-		return false;
-	}
-
-	std::println("✅ SELinux 已成功设置为 Enforcing 模式！");
-	return true;
+        if (input == "1") {
+            if (CheckPhase1Files()) SetSELinuxPermissive();
+            else system("pause");
+        } else if (input == "2") {
+            if (CheckPhase2Files()) InstallKernelSU();
+            else system("pause");
+        } else if (input == "3") {
+            break;
+        } else {
+            Error("无效输入，请重新选择");
+            std::this_thread::sleep_for(1s);
+        }
+    }
 }
 
-auto main() -> int
-{
-	try {
-		SetConsoleOutputCP(CP_UTF8);
-
-		std::println("工作目录：{}", cwd.string());
-
-		if (!fs::exists(adb_bin))
-		{
-			std::println("当前目录下没有 adb/adb.exe");
-			return 1;
-		}
-		adb_bin = adb_bin.lexically_relative(cwd);
-
-		if (!fs::exists(fastboot_bin))
-		{
-			std::println("当前目录下没有 adb/fastboot.exe");
-			return 1;
-		}
-		fastboot_bin = fastboot_bin.lexically_relative(cwd);
-
-		if (!fs::exists(ksud))
-		{
-			std::println("当前目录下没有 ksud");
-			return 1;
-		}
-		ksud = ksud.lexically_relative(cwd);
-
-		if (!fs::exists(ksum))
-		{
-			std::println("当前目录下没有 ksu.apk");
-			return 1;
-		}
-		ksum = ksum.lexically_relative(cwd);
-
-		if (!Step1()) return 1;
-		if (!Step2()) return 1;
-		if (!Step3()) return 1;
-		if (!Step4()) return 1;
-		if (!Step5()) return 1;
-
-		std::cout <<
-			"\n========================================\n"
-			"   🎉 所有步骤均已执行完成！\n"
-			"========================================\n";
-		std::println("🚀 尝试打开 KernelSU Manager...");
-		const auto r1 = Exec(adb_bin.string(), "shell am start -S me.weishu.kernelsu");
-		if (std::get<0>(r1) != 0)
-		{
-			std::println("❌ 命令执行失败！错误信息：{}", std::get<1>(r1));
-		}
-		std::println("✅ 已成功打开 KernelSU Manager！");
-	}
-	catch (const std::exception& ex)
-	{
-		std::println("程序发生异常：{}", ex.what());
-		return 1;
-	}
-
-	std::this_thread::sleep_for(5s);
-	system("pause");
-	return 0;
+int main() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleTitleA("KernelSU 一键安装工具");
+    ShowMainMenu();
+    return 0;
 }
