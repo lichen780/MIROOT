@@ -1,6 +1,5 @@
 #include <filesystem>
 #include <iostream>
-#include <print>
 #include <format>
 #include <tuple>
 #include <chrono>
@@ -61,48 +60,50 @@ void Loading(const string& text) {
         cout.flush();
         this_thread::sleep_for(90ms);
     }
-    cout << "\b✓\n";
+    cout << "\b✓" << endl;
     ResetColor();
 }
 
 void Title(const string& title) {
     system("cls");
     SetColor(Color::PURPLE);
-    cout << "========================================================\n";
+    cout << "========================================================" << endl;
     SetColor(Color::CYAN);
-    cout << "                   " << title << "\n";
+    cout << "                   " << title << endl;
     SetColor(Color::PURPLE);
-    cout << "========================================================\n\n";
+    cout << "========================================================" << endl;
+    cout << endl;
     ResetColor();
 }
 
 void OK(const string& msg) {
     SetColor(Color::GREEN);
-    cout << "✅ " << msg << "\n";
+    cout << "✅ " << msg << endl;
     ResetColor();
 }
 
 void ERR(const string& msg) {
     SetColor(Color::RED);
-    cout << "❌ " << msg << "\n";
+    cout << "❌ " << msg << endl;
     ResetColor();
 }
 
 void INFO(const string& msg) {
     SetColor(Color::BLUE);
-    cout << "ℹ️  " << msg << "\n";
+    cout << "ℹ️  " << msg << endl;
     ResetColor();
 }
 
 void WARN(const string& msg) {
     SetColor(Color::YELLOW);
-    cout << "⚠️  " << msg << "\n";
+    cout << "⚠️  " << msg << endl;
     ResetColor();
 }
 
 void PressAnyKeyBack() {
     SetColor(Color::GRAY);
-    cout << "\n执行完成！按回车键返回主菜单...";
+    cout << endl;
+    cout << "执行完成！按回车键返回主菜单...";
     cin.ignore(100000, '\n');
     cin.get();
     ResetColor();
@@ -228,10 +229,11 @@ void ShowDeviceInfo() {
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
 
     SetColor(Color::YELLOW);
-    cout << "📱 手机品牌：" << brand << "\n";
-    cout << "📱 手机型号：" << model << "\n";
-    cout << "🤖 安卓版本：" << android << "\n";
-    cout << "⚙️  处理器：" << cpu << "\n\n";
+    cout << "📱 手机品牌：" << brand << endl;
+    cout << "📱 手机型号：" << model << endl;
+    cout << "🤖 安卓版本：" << android << endl;
+    cout << "⚙️  处理器：" << cpu << endl;
+    cout << endl;
     ResetColor();
 }
 
@@ -298,25 +300,28 @@ void Menu() {
     while (true) {
         system("cls");
         SetColor(Color::CYAN);
-        cout << "  _   _  _   _    ____   _      ___  _   _  \n";
-        cout << " | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | \n";
-        cout << " |  \\| || | | |  | |_) || |     | | |  \\| | \n";
-        cout << " | |\\  || |_| |  |  __/ | |___  | | | |\\  | \n";
-        cout << " |_| \\_| \\___/   |_|    |_____| |___||_| \\_| \n";
-        cout << "                ___   ___  ___   \n";
-        cout << "               | _ \\ | _ \\| _ \\  \n";
-        cout << "               |  _/ |  _/|  _/  \n";
-        cout << "               |_|   |_|  |_|    \n\n";
+        cout << "  _   _  _   _    ____   _      ___  _   _  " << endl;
+        cout << " | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | " << endl;
+        cout << " |  \\| || | | |  | |_) || |     | | |  \\| | " << endl;
+        cout << " | |\\  || |_| |  |  __/ | |___  | | | |\\  | " << endl;
+        cout << " |_| \\_| \\___/   |_|    |_____| |___||_| \\_| " << endl;
+        cout << "                ___   ___  ___   " << endl;
+        cout << "               | _ \\ | _ \\| _ \\  " << endl;
+        cout << "               |  _/ |  _/|  _/  " << endl;
+        cout << "               |_|   |_|  |_|    " << endl;
+        cout << endl;
 
         SetColor(Color::PURPLE);
-        cout << "========================================================\n";
-        cout << "                 免解BL ROOT 工具\n";
-        cout << "========================================================\n\n";
+        cout << "========================================================" << endl;
+        cout << "                 免解BL ROOT 工具" << endl;
+        cout << "========================================================" << endl;
+        cout << endl;
         ResetColor();
 
-        cout << "  [1] 设置SELinux宽容\n";
-        cout << "  [2] 安装ROOT权限\n";
-        cout << "  [3] 退出程序\n\n";
+        cout << "  [1] 设置SELinux宽容" << endl;
+        cout << "  [2] 安装ROOT权限" << endl;
+        cout << "  [3] 退出程序" << endl;
+        cout << endl;
         SetColor(Color::GRAY);
         cout << "请选择功能 >> ";
         ResetColor();
@@ -332,7 +337,7 @@ void Menu() {
 
 int main() {
     SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleA("免解BL ROOT工具 | 无需解锁BL直接ROOT");
+    SetConsoleTitleA("免解BL ROOT工具"); // 极简标题 不乱码
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
     Menu();
