@@ -11,14 +11,24 @@
 #include <sstream>
 #include <windows.h>
 #include <string>
+#include <urlmon.h>
+#include <shellapi.h>
+
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "shell32.lib")
 
 using namespace std;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 const auto cwd = fs::current_path();
-fs::path adb_bin = cwd / "adb" / "adb.exe";
-fs::path fastboot_bin = cwd / "adb" / "fastboot.exe";
+const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
+const string ZIP_FILE = "platform-tools.zip";
+const string ADB_EXE = "adb.exe";
+const string TOOL_DIR = "platform-tools";
+
+fs::path adb_bin = cwd / "adb.exe";
+fs::path fastboot_bin = cwd / "fastboot.exe";
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
 
@@ -100,19 +110,62 @@ static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
     return { code, out };
 }
 
-// 关闭adb和fastboot进程
+// ===================== 自动下载 ADB 工具 =====================
+bool DownloadADB() {
+    INFO("正在下载 ADB 工具...");
+    HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
+    if (res != S_OK) {
+        ERR("下载失败！请检查网络");
+        return false;
+    }
+    OK("ADB 下载完成！");
+    return true;
+}
+
+// 自动解压 ZIP
+bool ExtractZIP() {
+    INFO("正在解压 ADB 工具...");
+    ShellExecuteA(0, "open", "powershell", "-Command \"Expand-Archive -Path platform-tools.zip -DestinationPath ./ -Force\"", 0, SW_HIDE);
+    this_thread::sleep_for(5s);
+    OK("解压完成！");
+    return true;
+}
+
+// 自动部署 ADB
+void AutoSetupADB() {
+    if (fs::exists(adb_bin)) return;
+
+    WARN("未检测到 ADB 工具，正在自动下载部署...");
+    if (!DownloadADB()) return;
+    if (!ExtractZIP()) return;
+
+    fs::copy(TOOL_DIR / ADB_EXE, cwd / ADB_EXE, fs::copy_options::overwrite_existing);
+    fs::copy(TOOL_DIR / "fastboot.exe", cwd / "fastboot.exe", fs::copy_options::overwrite_existing);
+    fs::copy(TOOL_DIR / "AdbWinApi.dll", cwd / "AdbWinApi.dll", fs::copy_options::overwrite_existing);
+    fs::copy(TOOL_DIR / "AdbWinUsbApi.dll", cwd / "AdbWinUsbApi.dll", fs::copy_options::overwrite_existing);
+
+    fs::remove(ZIP_FILE);
+    fs::remove_all(TOOL_DIR);
+    OK("ADB 部署完成！");
+}
+
+// ===================== 全局清理：杀adb + fastboot =====================
 void KillAdbFastboot() {
     system("adb kill-server >nul 2>&1");
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
 
-// 退出时清理
-void OnExit() {
-    KillAdbFastboot();
+// ===================== 拦截窗口关闭事件：点×也杀进程 =====================
+BOOL WINAPI ConsoleHandler(DWORD signal) {
+    if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT) {
+        KillAdbFastboot();
+        return TRUE;
+    }
+    return FALSE;
 }
 
-// ===================== 【无正则 稳定版】精准检测设备序列号 =====================
+// ===================== 精准检测设备序列号（你要求的标准） =====================
 bool CheckDeviceSerial() {
     auto [code, output] = Exec(adb_bin.string(), "devices");
     istringstream iss(output);
@@ -122,7 +175,6 @@ bool CheckDeviceSerial() {
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
         
-        // 核心判断：有序列号(长度≥10) + 状态为device
         size_t space_pos = line.find(" ");
         if (space_pos == string::npos) continue;
         
@@ -273,7 +325,6 @@ bool Func2_InstallRoot() {
     OK("SELinux 已恢复为强制模式");
 
     OK("\n🎉 免解BL ROOT安装全部完成！");
-    INFO("正在启动ROOT管理器...");
     Exec(adb_bin.string(), "shell am start -S me.weishu.kernelsu");
     system("pause >nul");
     return true;
@@ -297,9 +348,7 @@ void Menu() {
 
         SetColor(Color::PURPLE);
         println("========================================================");
-        SetColor(Color::YELLOW);
         println("                 免解BL ROOT 工具");
-        SetColor(Color::PURPLE);
         println("========================================================");
         ResetColor();
 
@@ -326,10 +375,17 @@ void Menu() {
     }
 }
 
+// ===================== 主函数 =====================
 int main() {
-    atexit(OnExit);
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleA("免解BL ROOT工具 | 无需解锁BL直接ROOT");
+    
+    // 注册关闭钩子
+    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+    
+    // 自动检查并下载ADB
+    AutoSetupADB();
+    
     Menu();
     return 0;
 }
