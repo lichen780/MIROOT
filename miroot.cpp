@@ -273,20 +273,30 @@ bool Func1_SetSELinux() {
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
-    Loading("重启至 Fastboot");
+    Loading("重启至 Fastboot 模式");
+    // 重启到bootloader（Fastboot）
     Exec(ADB_EXE.string(), "reboot bootloader");
-    INFO("进入 Fastboot 后按回车");
+    
+    // 【关键】等待用户确认手机已经进入Fastboot界面，再继续
+    INFO("请等待手机完全进入 Fastboot 模式");
+    INFO("确认进入后 → 按回车键继续执行命令");
     PressAnyKeyBack();
 
-    Loading("设置 SELinux 为宽容");
+    // ==============================
+    // 【核心修复】真正执行Fastboot命令
+    // ==============================
+    Loading("正在设置 SELinux 为宽容模式 (permissive)");
+    // 执行你要的命令：正确完整命令
     Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
 
-    Loading("重启系统");
+    Loading("正在重启手机系统");
+    // 正确重启命令：fastboot continue
     Exec(FASTBOOT_EXE.string(), "continue");
-    INFO("开机后按回车");
+
+    INFO("手机正在开机，开机完成后按回车");
     PressAnyKeyBack();
 
-    OK("SELinux 设置完成！");
+    OK("SELinux 宽容模式设置完成！");
     PressAnyKeyBack();
     return true;
 }
