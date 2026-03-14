@@ -214,7 +214,7 @@ void ShowDeviceInfo() {
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
     abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
     device.erase(remove_if(device.begin(), device.end(), ::isspace), device.end());
-    patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), device.end());
+    patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), patch.end());
 
     kernel.erase(remove_if(kernel.begin(), kernel.end(), [](int c) {
         return c == '\n' || c == '\r';
@@ -288,8 +288,8 @@ bool Func1_SetSELinux() {
     return true;
 }
 
-bool Func2_InstallRoot() {
-    Title("免解BL - 安装ROOT权限");
+bool Func2_InstallKernelSU() {
+    Title("免解BL - 安装 KernelSU 管理器");
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
@@ -306,14 +306,14 @@ bool Func2_InstallRoot() {
             PressAnyKeyBack();
             return true;
         }
-        INFO("准备覆盖安装 KernelSU");
+        INFO("准备覆盖安装 KernelSU 管理器");
     }
 
     Loading("安装 KernelSU 管理器");
     Exec(ADB_EXE.string(), format("push {} /data/local/tmp/KernelSU.apk", ksum.string()));
     Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/KernelSU.apk");
 
-    OK("ROOT 安装完成！请打开 KernelSU 授权");
+    OK("KernelSU 管理器安装完成！请打开应用授权");
     PressAnyKeyBack();
     return true;
 }
@@ -360,7 +360,7 @@ void DrawAnimatedMenu() {
     SetColor(GREEN);
     printf("      |   [1]  设置 SELinux 宽容模式                         |\n");
     SetColor(YELLOW);
-    printf("      |   [2]  安装 ROOT 权限                                |\n");
+    printf("      |   [2]  安装 KernelSU 管理器                          |\n");
     SetColor(RED);
     printf("      |   [3]  退出程序                                      |\n");
     SetColor(WHITE);
@@ -380,7 +380,7 @@ void Menu() {
         getline(cin, s);
 
         if (s == "1") { if (Check1()) Func1_SetSELinux(); }
-        if (s == "2") { if (Check2()) Func2_InstallRoot(); }
+        if (s == "2") { if (Check2()) Func2_InstallKernelSU(); }
         if (s == "3") { KillAdbFastboot(); break; }
     }
 }
