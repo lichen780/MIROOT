@@ -27,22 +27,25 @@ jobs:
         shell: cmd
 
       - name: UPX 极致压缩
-        shell: cmd
+        shell: powershell
         run: |
-          # 设置控制台编码为 UTF-8
+          # 设置编码确保中文文件名正常处理
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          [Console]::InputEncoding = [System.Text.Encoding]::UTF8
           chcp 65001
           
-          # 下载并解压 UPX
-          curl -L https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip -o upx.zip
-          tar -xf upx.zip
-          copy upx-5.1.1-win64\upx.exe .
+          # 下载 UPX
+          Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
           
-          # 压缩程序
-          upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
+          # 解压 ZIP
+          Expand-Archive -Path "upx.zip" -DestinationPath "."
           
-          # 清理 UPX
-          del upx.zip upx.exe
-          rmdir /s /q upx-5.1.1-win64
+          # 执行压缩
+          .\upx-5.1.1-win64\upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
+          
+          # 清理
+          Remove-Item -Path "upx.zip" -Force
+          Remove-Item -Path "upx-5.1.1-win64" -Recurse -Force
 
       - name: 提交编译产物
         run: |
