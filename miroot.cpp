@@ -170,17 +170,17 @@ BOOL WINAPI ConsoleHandler(DWORD signal) {
 }
 
 bool CheckDeviceSerial() {
+    system(format("\"{}\" devices >nul 2>&1", ADB_EXE.string()).c_str());
     auto [code, output] = Exec(ADB_EXE.string(), "devices");
+
     istringstream iss(output);
     string line;
     while (getline(iss, line)) {
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
-        size_t sp = line.find(" ");
-        if (sp == string::npos) continue;
-        string serial = line.substr(0, sp);
-        string status = line.substr(sp);
-        if (serial.size() >= 10 && status.find("device") != string::npos) return true;
+        if (line.find("device") != string::npos && line.find("offline") == string::npos) {
+            return true;
+        }
     }
     return false;
 }
@@ -188,8 +188,11 @@ bool CheckDeviceSerial() {
 void WaitForDeviceLoop() {
     INFO("等待设备连接，请开启USB调试...");
     while (true) {
-        if (CheckDeviceSerial()) { OK("设备已成功连接！"); break; }
-        Sleep(3000);
+        if (CheckDeviceSerial()) {
+            OK("设备已成功连接！");
+            break;
+        }
+        Sleep(1000);
     }
 }
 
@@ -208,7 +211,7 @@ void ShowDeviceInfo() {
 
     brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), ::isspace), model.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
     abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
@@ -345,7 +348,6 @@ bool Func2_InstallKernelSU() {
 
         string choice;
         cin >> choice;
-        cin.ignore();
         if (choice != "Y" && choice != "y") {
             INFO("已取消安装");
             PressAnyKeyBack();
@@ -422,7 +424,7 @@ void Menu() {
     while (true) {
         DrawAnimatedMenu();
         string s;
-        getline(cin, s);
+        cin >> s;
 
         if (s == "1") { if (Check1()) Func1_SetSELinux(); }
         if (s == "2") { if (Check2()) Func2_InstallKernelSU(); }
