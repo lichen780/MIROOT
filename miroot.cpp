@@ -174,14 +174,17 @@ bool CheckDeviceSerial() {
     auto [code, output] = Exec(ADB_EXE.string(), "devices");
     istringstream iss(output);
     string line;
+    
     while (getline(iss, line)) {
+        // 跳过无关行
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
-        size_t sp = line.find(" ");
-        if (sp == string::npos) continue;
-        string serial = line.substr(0, sp);
-        string status = line.substr(sp);
-        if (serial.size() >= 10 && status.find("device") != string::npos) return true;
+        
+        // 只要检测到在线设备就返回真
+        if (line.find("device") != string::npos && 
+            line.find("offline") == string::npos) {
+            return true;
+        }
     }
     return false;
 }
