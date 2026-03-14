@@ -23,7 +23,7 @@ jobs:
 
       - name: 编译 C++ 程序
         run: |
-          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:免解 BL ROOT 工具.exe
+          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
         shell: cmd
 
       # 👇 只做 UPX 压缩，不改动任何逻辑
