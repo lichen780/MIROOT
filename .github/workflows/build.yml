@@ -23,29 +23,28 @@ jobs:
         with:
           arch: x64
 
-      # 编译：简单直接，输出默认目录
+      # 🔥 关键：只用英文文件名，无中文无空格
       - name: 编译 C++ 程序
         run: |
-          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
+          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"miroot.exe"
         shell: cmd
 
-      # 压缩：全程 powershell，绝对路径，无空格问题
+      # 🔥 UPX 5.1.1 稳定压缩
       - name: 下载 UPX 5.1.1 并压缩
         shell: powershell
         run: |
           Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip" -UseBasicParsing
-          Expand-Archive "upx.zip" -DestinationPath "." -Force
-          $exePath = Get-ChildItem -Name "免解 BL ROOT 工具.exe"
-          .\upx-5.1.1-win64\upx.exe --best -f "$exePath"
-          Remove-Item "upx.zip" -Force
-          Remove-Item "upx-5.1.1-win64" -Recurse -Force
+          Expand-Archive upx.zip -Force
+          .\upx-5.1.1-win64\upx.exe --best -f miroot.exe
+          Remove-Item upx.zip -Force
+          Remove-Item upx-5.1.1-win64 -Recurse -Force
 
-      # 提交
+      # 🔥 提交英文 exe，永不报错
       - name: 提交编译产物
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add "免解 BL ROOT 工具.exe"
-          git commit -m "CI: 自动编译" --allow-empty
+          git add miroot.exe
+          git commit -m "CI: 自动编译"
           git push
         shell: bash
