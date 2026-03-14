@@ -1,3 +1,4 @@
+#include <windows.h>
 #include <filesystem>
 #include <iostream>
 #include <format>
@@ -8,7 +9,6 @@
 #include <limits>
 #include <algorithm>
 #include <sstream>
-#include <windows.h>
 #include <string>
 #include <urlmon.h>
 #include <shellapi.h>
@@ -27,7 +27,6 @@ const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
 
-// 已修改为 KernelSU.apk
 fs::path ksum = cwd / "KernelSU.apk";
 
 enum Color {
@@ -94,7 +93,7 @@ void WARN(const string& msg) {
 void PressAnyKeyBack() {
     SetColor(GRAY);
     printf("\n执行完成！按回车键返回主菜单...");
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.ignore((std::numeric_limits<streamsize>::max)(), '\n');
     cin.get();
     ResetColor();
 }
@@ -206,7 +205,7 @@ void ShowDeviceInfo() {
 
     brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), ::isspace), brand.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
     abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
@@ -244,7 +243,6 @@ bool Check1() {
 bool Check2() {
     if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
-    // 检查 KernelSU.apk
     if (!fs::exists(ksum)) { ERR("缺少 KernelSU.apk 文件"); return false; }
     return true;
 }
@@ -294,7 +292,6 @@ bool Func2_InstallRoot() {
     }
 
     Loading("安装 KernelSU 管理器");
-    // 推送并安装 KernelSU.apk
     Exec(ADB_EXE.string(), format("push {} /data/local/tmp/KernelSU.apk", ksum.string()));
     Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/KernelSU.apk");
 
