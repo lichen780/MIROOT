@@ -144,7 +144,7 @@ bool ExtractADB() {
 
 void AutoSetupADB() {
     if (fs::exists(ADB_EXE)) { OK("adb 工具已存在"); return; }
-    WARN("未检测到 adb 文件夹，自动部署中...");
+    WARN("未检测到 adb 工具，自动部署中...");
     if (DownloadADB() && ExtractADB()) {
         fs::remove(ZIP_FILE);
         OK("ADB 部署完成！");
@@ -253,11 +253,11 @@ bool Func2_InstallRoot() {
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
-    Loading("推送ROOT组件");
+    Loading("推送KernelSU组件");
     Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
     Exec(ADB_EXE.string(), "shell chmod 755 /data/local/tmp/ksud");
 
-    Loading("启动ROOT服务");
+    Loading("启动KernelSU服务");
     Exec(ADB_EXE.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
     Sleep(2000);
 
