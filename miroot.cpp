@@ -8,8 +8,9 @@
 #include <cstdio>
 #include <numeric>
 #include <algorithm>
+#include <sstream>
+#include <regex>
 #include <windows.h>
-#include <tlhelp32.h>
 
 #define NOMINMAX
 #include <Windows.h>
@@ -102,24 +103,43 @@ static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<
     return { code, out };
 }
 
-// 关闭adb和fastboot进程（退出程序时自动执行）
+// 关闭adb和fastboot进程
 void KillAdbFastboot() {
     system("adb kill-server >nul 2>&1");
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
 
-// 程序退出回调
+// 退出时清理
 void OnExit() {
     KillAdbFastboot();
 }
 
-// 循环等待设备连接（3秒检测一次）
+// ===================== 【终极精准】检测设备序列号（唯一标准） =====================
+bool CheckDeviceSerial() {
+    auto [code, output] = Exec(adb_bin.string(), "devices");
+    std::istringstream iss(output);
+    std::string line;
+    
+    while (getline(iss, line)) {
+        if (line.find("List of devices") != string::npos) continue;
+        if (line.empty()) continue;
+        
+        // 匹配 10-17位 设备序列号（所有安卓手机标准）
+        regex reg(R"([0-9a-zA-Z]{10,17})");
+        smatch match;
+        if (regex_search(line, match, reg) && line.find("device") != string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 循环等待设备（3秒一次）
 void WaitForDeviceLoop() {
-    INFO("等待设备连接，请确保开启USB调试...\n");
+    INFO("等待设备连接，请开启USB调试...\n");
     while (true) {
-        auto [code, output] = Exec(adb_bin.string(), "devices");
-        if (code == 0 && output.find("device") != std::string::npos && output.find("offline") == std::string::npos) {
+        if (CheckDeviceSerial()) {
             OK("设备已成功连接！");
             break;
         }
@@ -148,7 +168,7 @@ void ShowDeviceInfo() {
     ResetColor();
 }
 
-// ===================== 静默文件检查 =====================
+// ===================== 文件检查 =====================
 bool Check1() {
     if (!fs::exists(adb_bin)) { ERR("缺少 adb 文件"); return false; }
     if (!fs::exists(fastboot_bin)) { ERR("缺少 fastboot 文件"); return false; }
@@ -166,7 +186,6 @@ bool Check2() {
 // ===================== 功能1：设置SELinux宽容 =====================
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
-
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
@@ -204,7 +223,6 @@ bool Func1_SetSELinux() {
 // ===================== 功能2：安装ROOT权限 =====================
 bool Func2_InstallRoot() {
     Title("免解BL - 安装ROOT权限");
-
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
@@ -270,7 +288,7 @@ void Menu() {
         std::println(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | ");
         std::println(" |  \\| || | | |  | |_) || |     | | |  \\| | ");
         std::println(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | ");
-        std::println(" |_| \\_| \\___/   |_|    |_____||___||_| \\_| ");
+        std::println(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| ");
         std::println("                ___   ___  ___   ");
         std::println("               | _ \\ | _ \\| _ \\  ");
         std::println("               |  _/ |  _/|  _/  ");
@@ -308,7 +326,6 @@ void Menu() {
 }
 
 int main() {
-    // 注册程序退出时自动清理进程
     atexit(OnExit);
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleA("免解BL ROOT工具 | 无需解锁BL直接ROOT");
