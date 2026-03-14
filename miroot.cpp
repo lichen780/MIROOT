@@ -271,39 +271,39 @@ bool Check2() {
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
 
-    // ==============================================
-    // 智能检测：是否已经在 Fastboot 模式
-    // ==============================================
+    // 检测是否已经在 Fastboot 模式
     bool alreadyInFastboot = false;
     auto [fbCode, fbOut] = Exec(FASTBOOT_EXE.string(), "devices");
     if (fbOut.find("fastboot") != string::npos) {
         alreadyInFastboot = true;
         OK("检测到手机已处于 Fastboot 模式，跳过重启！");
         Sleep(1500);
+        ShowFastbootDeviceInfo(); // 直接显示Fastboot信息
     } else {
-        // 不在 Fastboot，先连接 ADB
+        // 不在Fastboot：正常ADB连接
         WaitForDeviceLoop();
         ShowDeviceInfo();
 
         Loading("重启至 Fastboot 模式");
         Exec(ADB_EXE.string(), "reboot bootloader");
-
+        
+        // 提示 + 原生暂停（不新增函数！）
         INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
         INFO("确认进入后 → 按回车键继续执行命令");
-        PressAnyKeyBack();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // 清空缓存
+        cin.get(); // 只按回车继续，不输出文字、不返回菜单
     }
 
-    // ==============================================
-    // 【关键点】无论是否重启，都在这里等待用户确认
-    // ==============================================
-    if (!alreadyInFastboot) {
-        INFO("确认已进入 Fastboot 模式后，按回车键执行命令");
-        PressAnyKeyBack();
-    }
+    // ============================
+    // 最终确认（同样用原生暂停）
+    // ============================
+    INFO("准备执行 SELinux 设置命令");
+    INFO("确认已在 Fastboot → 按回车执行");
+    cin.get();
 
-    // ==============================================
-    // 执行核心命令
-    // ==============================================
+    // ============================
+    // 真正执行命令
+    // ============================
     Loading("正在设置 SELinux 为宽容模式");
     Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
 
@@ -311,10 +311,10 @@ bool Func1_SetSELinux() {
     Exec(FASTBOOT_EXE.string(), "continue");
 
     INFO("手机开机完成后按回车");
-    PressAnyKeyBack();
+    cin.get();
 
     OK("SELinux 宽容模式设置完成！");
-    PressAnyKeyBack();
+    PressAnyKeyBack(); // 只有最后一步用这个返回菜单
     return true;
 }
 
