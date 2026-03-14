@@ -61,7 +61,7 @@ void Title(const string& title) {
     SetColor(PURPLE);
     printf("========================================================\n");
     SetColor(CYAN);
-    printf("                   %s\n", title.c_str());
+    printf("                  免解 BL ROOT 工具\n");
     SetColor(PURPLE);
     printf("========================================================\n\n");
     ResetColor();
@@ -100,7 +100,7 @@ void PressAnyKeyBack() {
 }
 
 static tuple<int, string> Exec(const string& bin, const string& args) {
-    string cmd = format("\"{}\" {} 2>&1", bin, args);
+    string cmd = format("\"{}\" {} 2>nul", bin, args);
     FILE* pipe = _popen(cmd.c_str(), "r");
     if (!pipe) return { -1, "" };
 
