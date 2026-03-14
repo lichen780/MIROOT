@@ -25,20 +25,16 @@ jobs:
 
       - name: 编译 C++ 程序
         run: |
-          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
+          cl /EHsc /std:c++latest /O2 miroot.cpp /link "/OUT:$env:GITHUB_WORKSPACE\免解 BL ROOT 工具.exe"
         shell: cmd
 
-      # ✅ 绝对不报错：UPX 5.1.1
-      - name: 下载并使用 UPX 5.1.1 压缩
+      - name: 下载 UPX 5.1.1 并压缩
         shell: powershell
         run: |
-          # 下载
+          $exe = "$env:GITHUB_WORKSPACE\免解 BL ROOT 工具.exe"
           Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip" -UseBasicParsing
-          # 解压
           Expand-Archive "upx.zip" -DestinationPath "." -Force
-          # 压缩
-          .\upx-5.1.1-win64\upx.exe --best -f "免解 BL ROOT 工具.exe"
-          # 清理
+          .\upx-5.1.1-win64\upx.exe --best -f "$exe"
           Remove-Item "upx.zip" -Force
           Remove-Item "upx-5.1.1-win64" -Recurse -Force
 
