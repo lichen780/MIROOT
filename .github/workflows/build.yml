@@ -23,21 +23,24 @@ jobs:
         with:
           arch: x64
 
+      # 编译：简单直接，输出默认目录
       - name: 编译 C++ 程序
         run: |
-          cl /EHsc /std:c++latest /O2 miroot.cpp /link "/OUT:$env:GITHUB_WORKSPACE\免解 BL ROOT 工具.exe"
+          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
         shell: cmd
 
+      # 压缩：全程 powershell，绝对路径，无空格问题
       - name: 下载 UPX 5.1.1 并压缩
         shell: powershell
         run: |
-          $exe = "$env:GITHUB_WORKSPACE\免解 BL ROOT 工具.exe"
           Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip" -UseBasicParsing
           Expand-Archive "upx.zip" -DestinationPath "." -Force
-          .\upx-5.1.1-win64\upx.exe --best -f "$exe"
+          $exePath = Get-ChildItem -Name "免解 BL ROOT 工具.exe"
+          .\upx-5.1.1-win64\upx.exe --best -f "$exePath"
           Remove-Item "upx.zip" -Force
           Remove-Item "upx-5.1.1-win64" -Recurse -Force
 
+      # 提交
       - name: 提交编译产物
         run: |
           git config --global user.name "GitHub Actions"
