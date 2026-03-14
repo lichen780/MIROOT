@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <numeric>
 #include <algorithm>
+#include <windows.h>
+#include <tlhelp32.h>
 
 #define NOMINMAX
 #include <Windows.h>
@@ -100,7 +102,19 @@ static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<
     return { code, out };
 }
 
-// 循环等待设备连接（直到连上才退出）
+// 关闭adb和fastboot进程（退出程序时自动执行）
+void KillAdbFastboot() {
+    system("adb kill-server >nul 2>&1");
+    system("taskkill /f /im adb.exe >nul 2>&1");
+    system("taskkill /f /im fastboot.exe >nul 2>&1");
+}
+
+// 程序退出回调
+void OnExit() {
+    KillAdbFastboot();
+}
+
+// 循环等待设备连接（3秒检测一次）
 void WaitForDeviceLoop() {
     INFO("等待设备连接，请确保开启USB调试...\n");
     while (true) {
@@ -109,7 +123,7 @@ void WaitForDeviceLoop() {
             OK("设备已成功连接！");
             break;
         }
-        std::this_thread::sleep_for(1s);
+        std::this_thread::sleep_for(3s);
     }
 }
 
@@ -153,7 +167,6 @@ bool Check2() {
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
 
-    // 循环检测设备，连上才继续
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
@@ -192,7 +205,6 @@ bool Func1_SetSELinux() {
 bool Func2_InstallRoot() {
     Title("免解BL - 安装ROOT权限");
 
-    // 循环检测设备，连上才继续
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
@@ -254,11 +266,15 @@ void Menu() {
         system("cls");
         SetColor(Color::CYAN);
 
-        std::println("    __  ___                       __  ______  ____");
-        std::println("   /  |/  /___  ____  ____ ______/  |/  / _ \\/ __/");
-        std::println("  / /|_/ / __ \\/ __ \\/ __ `/ ___/ /|_/ / , _/ /    ");
-        std::println(" / /  / / /_/ / /_/ / /_/ / /  / /  / / /| / /___ ");
-        std::println("/_/  /_/\\____/\\____/\\__,_/_/  /_/  /_/_/ |_/_____/  ");
+        std::println("  _   _  _   _    ____   _      ___  _   _  ");
+        std::println(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | ");
+        std::println(" |  \\| || | | |  | |_) || |     | | |  \\| | ");
+        std::println(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | ");
+        std::println(" |_| \\_| \\___/   |_|    |_____||___||_| \\_| ");
+        std::println("                ___   ___  ___   ");
+        std::println("               | _ \\ | _ \\| _ \\  ");
+        std::println("               |  _/ |  _/|  _/  ");
+        std::println("               |_|   |_|  |_|    ");
 
         SetColor(Color::PURPLE);
         std::println("========================================================");
@@ -271,7 +287,7 @@ void Menu() {
         std::println("");
         std::println("  [1] 设置SELinux宽容");
         std::println("  [2] 安装ROOT权限");
-        std::println("  [3] 退出");
+        std::println("  [3] 退出程序");
         std::println("");
         SetColor(Color::GRAY);
         std::print("请选择功能 >> ");
@@ -282,13 +298,18 @@ void Menu() {
 
         if (s == "1") { if (Check1()) Func1_SetSELinux(); else system("pause"); }
         if (s == "2") { if (Check2()) Func2_InstallRoot(); else system("pause"); }
-        if (s == "3") break;
+        if (s == "3") {
+            KillAdbFastboot();
+            break;
+        }
 
         std::this_thread::sleep_for(300ms);
     }
 }
 
 int main() {
+    // 注册程序退出时自动清理进程
+    atexit(OnExit);
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleA("免解BL ROOT工具 | 无需解锁BL直接ROOT");
     Menu();
