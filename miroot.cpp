@@ -7,6 +7,7 @@
 #include <thread>
 #include <cstdio>
 #include <numeric>
+#include <algorithm>
 
 #define NOMINMAX
 #include <Windows.h>
@@ -96,11 +97,20 @@ static auto Exec(const std::string& bin, const std::string& args) -> std::tuple<
     while (fgets(buf, sizeof(buf), pipe)) out += buf;
 
     int code = _pclose(pipe);
-    if (code != 0) {
-        ERR(std::format("执行失败 ({})", code));
-        if (!out.empty()) std::println("日志：{}", out);
-    }
     return { code, out };
+}
+
+// 循环等待设备连接（直到连上才退出）
+void WaitForDeviceLoop() {
+    INFO("等待设备连接，请确保开启USB调试...\n");
+    while (true) {
+        auto [code, output] = Exec(adb_bin.string(), "devices");
+        if (code == 0 && output.find("device") != std::string::npos && output.find("offline") == std::string::npos) {
+            OK("设备已成功连接！");
+            break;
+        }
+        std::this_thread::sleep_for(1s);
+    }
 }
 
 // 获取手机信息
@@ -120,9 +130,8 @@ void ShowDeviceInfo() {
     std::println("📱 手机品牌：{}", brand);
     std::println("📱 手机型号：{}", model);
     std::println("🤖 安卓版本：{}", android);
-    std::println("⚙️  处理器：{}", cpu);
+    std::println("⚙️  处理器：{}\n", cpu);
     ResetColor();
-    std::println("");
 }
 
 // ===================== 静默文件检查 =====================
@@ -143,15 +152,10 @@ bool Check2() {
 // ===================== 功能1：设置SELinux宽容 =====================
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
-    INFO("请先开启开发者选项 + USB调试");
-    INFO("手机解锁进入桌面并连接电脑");
-    Wait();
 
-    Loading("检测设备");
-    auto [c1, o1] = Exec(adb_bin.string(), "devices");
-    if (c1 != 0) return false;
-
-    ShowDeviceInfo(); // 显示手机信息
+    // 循环检测设备，连上才继续
+    WaitForDeviceLoop();
+    ShowDeviceInfo();
 
     Loading("重启至 Fastboot");
     auto [c2, o2] = Exec(adb_bin.string(), "reboot bootloader");
@@ -187,13 +191,10 @@ bool Func1_SetSELinux() {
 // ===================== 功能2：安装ROOT权限 =====================
 bool Func2_InstallRoot() {
     Title("免解BL - 安装ROOT权限");
-    INFO("请解锁手机进入桌面");
-    Wait();
 
-    Loading("等待设备");
-    Exec(adb_bin.string(), "wait-for-device");
-
-    ShowDeviceInfo(); // 显示手机信息
+    // 循环检测设备，连上才继续
+    WaitForDeviceLoop();
+    ShowDeviceInfo();
 
     Loading("推送ROOT组件");
     Exec(adb_bin.string(), std::format("push {} /data/local/tmp/ksud", ksud.string()));
