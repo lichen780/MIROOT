@@ -21,27 +21,29 @@ jobs:
       - name: 设置 MSVC x64 编译环境
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: x64  # 保持 64 位
+          arch: x64
 
-      - name: 编译 C++ 程序（保留 /O2 优化）
+      - name: 编译 C++ 程序
         run: |
           cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:"免解 BL ROOT 工具.exe"
         shell: cmd
 
-      - name: 下载 UPX 并 64 位强力压缩
+      - name: 下载 UPX 并压缩
         run: |
           curl -sL https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-win64.zip -o upx.zip
-          powershell "Expand-Archive upx.zip -DestinationPath ."
+          powershell "Expand-Archive upx.zip -Force"
+          :: 直接用绝对路径调用 upx，避免找不到命令
           upx-4.2.4-win64\upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
+          :: 清理临时文件
           del /q upx.zip
           rmdir /s /q upx-4.2.4-win64
         shell: cmd
 
-      - name: 提交 exe 到仓库
+      - name: 提交编译结果
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add "免解 BL ROOT 工具.exe"
-          git commit -m "自动编译" --allow-empty
+          git commit -m "CI: 自动编译程序" --allow-empty
           git push
         shell: bash
