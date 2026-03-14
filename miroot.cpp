@@ -289,7 +289,8 @@ bool Func1_SetSELinux() {
 
         INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
         INFO("确认进入后 → 按回车键直接执行命令！");
-        cin.ignore((std::numeric_limits<std::streamsize>::max)(), '\n');
+        
+        // ✅ 只留这一个，绝对只按一次回车
         cin.get();
     }
 
@@ -308,7 +309,6 @@ bool Func1_SetSELinux() {
     auto start = chrono::steady_clock::now();
 
     while (true) {
-        // 检测是否超时30秒
         auto now = chrono::steady_clock::now();
         auto sec = chrono::duration_cast<chrono::seconds>(now - start).count();
         if (sec >= 30) {
@@ -316,15 +316,14 @@ bool Func1_SetSELinux() {
             break;
         }
 
-        // 检测设备是否已连接
         if (CheckDeviceSerial()) {
             device_online = true;
             OK("设备已重新上线！");
-            Sleep(800);  // 轻微缓冲，确保系统完全启动
+            Sleep(800);
             break;
         }
 
-        Sleep(800); // 每800ms检测一次，不占用CPU
+        Sleep(800);
     }
 
     // ======================
