@@ -214,7 +214,7 @@ void ShowDeviceInfo() {
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
     abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
     device.erase(remove_if(device.begin(), device.end(), ::isspace), device.end());
-    patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), patch.end());
+    patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), device.end());
 
     kernel.erase(remove_if(kernel.begin(), kernel.end(), [](int c) {
         return c == '\n' || c == '\r';
@@ -244,10 +244,24 @@ bool Check1() {
     return true;
 }
 
+// 核心修改：友好提示 KernelSU 缺失，不再直接报错
 bool Check2() {
     if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
-    if (!fs::exists(ksum)) { ERR("缺少 KernelSU.apk 文件"); return false; }
+    
+    // 找不到 KernelSU.apk，提示用户手动下载
+    if (!fs::exists(ksum)) {
+        Title("文件缺失提示");
+        WARN("未检测到 KernelSU.apk 文件！");
+        cout << endl;
+        INFO("请自行下载 KernelSU.apk，并保存到软件当前目录");
+        INFO("文件名必须为：KernelSU.apk");
+        cout << endl;
+        INFO("下载地址：https://github.com/tiann/KernelSU/releases");
+        cout << endl;
+        PressAnyKeyBack();
+        return false;
+    }
     return true;
 }
 
