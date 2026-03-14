@@ -27,8 +27,8 @@ const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
 
-fs::path ksum = cwd / "ksu.apk";
-fs::path ksud = cwd / "ksud";
+// 已修改为 KernelSU.apk
+fs::path ksum = cwd / "KernelSU.apk";
 
 enum Color {
     RED = 12, GREEN = 10, YELLOW = 14, BLUE = 9,
@@ -94,7 +94,7 @@ void WARN(const string& msg) {
 void PressAnyKeyBack() {
     SetColor(GRAY);
     printf("\n执行完成！按回车键返回主菜单...");
-    cin.ignore(100000, '\n');
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
     cin.get();
     ResetColor();
 }
@@ -193,22 +193,46 @@ void WaitForDeviceLoop() {
 
 void ShowDeviceInfo() {
     Loading("正在获取手机信息");
+
     auto [_, brand] = Exec(ADB_EXE.string(), "shell getprop ro.product.brand");
     auto [__, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
     auto [___, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
     auto [____, cpu] = Exec(ADB_EXE.string(), "shell getprop ro.product.board");
+    auto [_____, sdk] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.sdk");
+    auto [______, kernel] = Exec(ADB_EXE.string(), "shell uname -r");
+    auto [_______, abi] = Exec(ADB_EXE.string(), "shell getprop ro.product.cpu.abi");
+    auto [________, device] = Exec(ADB_EXE.string(), "shell getprop ro.product.device");
+    auto [_________, patch] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.security_patch");
 
     brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), brand.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
+    sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
+    abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
+    device.erase(remove_if(device.begin(), device.end(), ::isspace), device.end());
+    patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), patch.end());
+
+    kernel.erase(remove_if(kernel.begin(), kernel.end(), [](int c) {
+        return c == '\n' || c == '\r';
+    }), kernel.end());
 
     SetColor(YELLOW);
     printf("📱 手机品牌：%s\n", brand.c_str());
     printf("📱 手机型号：%s\n", model.c_str());
-    printf("🤖 安卓版本：%s\n", android.c_str());
-    printf("⚙️  处理器：%s\n\n", cpu.c_str());
+    printf("🔧 产品代号：%s\n", device.c_str());
+    printf("🤖 安卓版本：%s (API %s)\n", android.c_str(), sdk.c_str());
+    printf("⚙️ 处理器：%s\n", cpu.c_str());
+    printf("🧩 CPU 架构：%s\n", abi.c_str());
+    printf("🧠 内核版本：%s\n", kernel.c_str());
+    printf("🛡️ 安全补丁：%s\n", patch.c_str());
+    printf("\n");
     ResetColor();
+}
+
+bool IsKsuInstalled() {
+    auto [code, _] = Exec(ADB_EXE.string(), "shell pm list packages | findstr me.weishu.kernelsu");
+    return code == 0;
 }
 
 bool Check1() {
@@ -220,8 +244,8 @@ bool Check1() {
 bool Check2() {
     if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
-    if (!fs::exists(ksud)) { ERR("缺少 ksud 文件"); return false; }
-    if (!fs::exists(ksum)) { ERR("缺少 ksu.apk 文件"); return false; }
+    // 检查 KernelSU.apk
+    if (!fs::exists(ksum)) { ERR("缺少 KernelSU.apk 文件"); return false; }
     return true;
 }
 
@@ -253,17 +277,26 @@ bool Func2_InstallRoot() {
     WaitForDeviceLoop();
     ShowDeviceInfo();
 
-    Loading("推送KernelSU组件");
-    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
-    Exec(ADB_EXE.string(), "shell chmod 755 /data/local/tmp/ksud");
+    if (IsKsuInstalled()) {
+        WARN("检测到手机已安装 KernelSU 管理器！");
+        SetColor(CYAN);
+        printf("\n是否覆盖安装？[Y] 覆盖 / [N] 取消：");
+        ResetColor();
 
-    Loading("启动KernelSU服务");
-    Exec(ADB_EXE.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
-    Sleep(2000);
+        string choice;
+        getline(cin, choice);
+        if (choice != "Y" && choice != "y") {
+            INFO("已取消安装");
+            PressAnyKeyBack();
+            return true;
+        }
+        INFO("准备覆盖安装 KernelSU");
+    }
 
     Loading("安装 KernelSU 管理器");
-    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
-    Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/ksu.apk");
+    // 推送并安装 KernelSU.apk
+    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/KernelSU.apk", ksum.string()));
+    Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/KernelSU.apk");
 
     OK("ROOT 安装完成！请打开 KernelSU 授权");
     PressAnyKeyBack();
