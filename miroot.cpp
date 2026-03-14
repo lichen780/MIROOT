@@ -332,7 +332,7 @@ void DrawAnimatedMenu() {
     SetColor(c3);
     printf("      ║                                                    ║\n");
     SetColor(c1);
-    printf("      ║              免解锁BL ROOT工具                   ║\n");
+    printf("      ║              免解锁BL ROOT工具                    ║\n");
     SetColor(c2);
     printf("      ║                                                    ║\n");
     SetColor(c3);
@@ -344,11 +344,11 @@ void DrawAnimatedMenu() {
     printf("      +------------------------------------------------------+\n");
     printf("      |                                                      |\n");
     SetColor(GREEN);
-    printf("      |   [1]  设置 SELinux 宽容模式                       |\n");
+    printf("      |   [1]  设置 SELinux 宽容模式                        |\n");
     SetColor(YELLOW);
-    printf("      |   [2]  安装 ROOT 权限                              |\n");
+    printf("      |   [2]  安装 ROOT 权限                               |\n");
     SetColor(RED);
-    printf("      |   [3]  退出程序                                    |\n");
+    printf("      |   [3]  退出程序                                     |\n");
     SetColor(WHITE);
     printf("      |                                                      |\n");
     printf("      +------------------------------------------------------+\n");
