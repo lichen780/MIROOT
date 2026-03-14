@@ -308,7 +308,7 @@ void Menu() {
 
 int main() {
     SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleA("免解 BL ROOT 工具");
+    SetConsoleTitleW(L"免解 BL ROOT 工具");
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
     Menu();
