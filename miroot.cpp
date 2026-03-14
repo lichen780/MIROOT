@@ -97,7 +97,6 @@ void WARN(const string& msg) {
 void PressAnyKeyBack() {
     SetColor(GRAY);
     printf("\n执行完成！按回车键返回主菜单...");
-    cin.ignore((std::numeric_limits<streamsize>::max)(), '\n');
     cin.get();
     ResetColor();
 }
@@ -174,17 +173,14 @@ bool CheckDeviceSerial() {
     auto [code, output] = Exec(ADB_EXE.string(), "devices");
     istringstream iss(output);
     string line;
-    
     while (getline(iss, line)) {
-        // 跳过无关行
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
-        
-        // 只要检测到在线设备就返回真
-        if (line.find("device") != string::npos && 
-            line.find("offline") == string::npos) {
-            return true;
-        }
+        size_t sp = line.find(" ");
+        if (sp == string::npos) continue;
+        string serial = line.substr(0, sp);
+        string status = line.substr(sp);
+        if (serial.size() >= 10 && status.find("device") != string::npos) return true;
     }
     return false;
 }
@@ -212,7 +208,7 @@ void ShowDeviceInfo() {
 
     brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), model.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
     abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
@@ -247,12 +243,10 @@ bool Check1() {
     return true;
 }
 
-// 核心修改：友好提示 KernelSU 缺失，不再直接报错
 bool Check2() {
     if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
-    
-    // 找不到 KernelSU.apk，提示用户手动下载
+
     if (!fs::exists(ksum)) {
         Title("文件缺失提示");
         WARN("未检测到 KernelSU.apk 文件！");
@@ -271,7 +265,6 @@ bool Check2() {
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
 
-    // 检测是否已经在 Fastboot 模式
     bool alreadyInFastboot = false;
     auto [fbCode, fbOut] = Exec(FASTBOOT_EXE.string(), "devices");
     if (fbOut.find("fastboot") != string::npos) {
@@ -289,21 +282,15 @@ bool Func1_SetSELinux() {
 
         INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
         INFO("确认进入后 → 按回车键直接执行命令！");
-        
-        // ✅ 只留这一个，绝对只按一次回车
         cin.get();
     }
 
-    // 执行核心命令
     Loading("正在设置 SELinux 为宽容模式");
     Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
 
     Loading("正在重启手机系统");
     Exec(FASTBOOT_EXE.string(), "continue");
 
-    // ======================
-    // 智能等待设备：最多30秒，检测到就继续
-    // ======================
     INFO("等待手机开机并重新连接... (最长等待30秒)");
     bool device_online = false;
     auto start = chrono::steady_clock::now();
@@ -322,13 +309,9 @@ bool Func1_SetSELinux() {
             Sleep(800);
             break;
         }
-
         Sleep(800);
     }
 
-    // ======================
-    // 检测 SELinux 状态
-    // ======================
     if (device_online) {
         Loading("正在检测 SELinux 模式");
         auto [_, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
@@ -361,7 +344,8 @@ bool Func2_InstallKernelSU() {
         ResetColor();
 
         string choice;
-        getline(cin, choice);
+        cin >> choice;
+        cin.ignore();
         if (choice != "Y" && choice != "y") {
             INFO("已取消安装");
             PressAnyKeyBack();
