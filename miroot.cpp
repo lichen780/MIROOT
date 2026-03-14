@@ -6,7 +6,6 @@
 #include <thread>
 #include <cstdio>
 #include <limits>
-#include <numeric>
 #include <algorithm>
 #include <sstream>
 #include <windows.h>
@@ -18,7 +17,6 @@
 #pragma comment(lib, "shell32.lib")
 
 using namespace std;
-using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 const fs::path cwd = fs::current_path();
@@ -32,92 +30,82 @@ const string ZIP_FILE = "platform-tools.zip";
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
 
-enum class Color {
-    RED = 12,
-    GREEN = 10,
-    YELLOW = 14,
-    BLUE = 9,
-    PURPLE = 13,
-    CYAN = 11,
-    WHITE = 15,
-    GRAY = 8
+enum Color {
+    RED = 12, GREEN = 10, YELLOW = 14, BLUE = 9,
+    PURPLE = 13, CYAN = 11, WHITE = 15, GRAY = 8
 };
 
-void SetColor(Color color) {
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), (WORD)color);
+void SetColor(int color) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
 
 void ResetColor() {
-    SetColor(Color::WHITE);
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
 }
 
 void Loading(const string& text) {
-    SetColor(Color::CYAN);
-    cout << text << " ";
+    SetColor(CYAN);
+    printf("%s ", text.c_str());
     const char ch[] = "|/-\\";
-    for (int i = 0; i < 12; ++i) {
-        cout << "\b" << ch[i % 4];
-        cout.flush();
-        this_thread::sleep_for(90ms);
+    for (int i = 0; i < 12; i++) {
+        printf("\b%c", ch[i % 4]);
+        fflush(stdout);
+        Sleep(90);
     }
-    cout << "\b✓" << endl;
+    printf("\b✓\n");
     ResetColor();
 }
 
 void Title(const string& title) {
     system("cls");
-    SetColor(Color::PURPLE);
-    cout << "========================================================" << endl;
-    SetColor(Color::CYAN);
-    cout << "                   " << title << endl;
-    SetColor(Color::PURPLE);
-    cout << "========================================================" << endl;
-    cout << endl;
+    SetColor(PURPLE);
+    printf("========================================================\n");
+    SetColor(CYAN);
+    printf("                   %s\n", title.c_str());
+    SetColor(PURPLE);
+    printf("========================================================\n\n");
     ResetColor();
 }
 
 void OK(const string& msg) {
-    SetColor(Color::GREEN);
-    cout << "✅ " << msg << endl;
+    SetColor(GREEN);
+    printf("✅ %s\n", msg.c_str());
     ResetColor();
 }
 
 void ERR(const string& msg) {
-    SetColor(Color::RED);
-    cout << "❌ " << msg << endl;
+    SetColor(RED);
+    printf("❌ %s\n", msg.c_str());
     ResetColor();
 }
 
 void INFO(const string& msg) {
-    SetColor(Color::BLUE);
-    cout << "ℹ️  " << msg << endl;
+    SetColor(BLUE);
+    printf("ℹ️  %s\n", msg.c_str());
     ResetColor();
 }
 
 void WARN(const string& msg) {
-    SetColor(Color::YELLOW);
-    cout << "⚠️  " << msg << endl;
+    SetColor(YELLOW);
+    printf("⚠️  %s\n", msg.c_str());
     ResetColor();
 }
 
 void PressAnyKeyBack() {
-    SetColor(Color::GRAY);
-    cout << endl;
-    cout << "执行完成！按回车键返回主菜单...";
+    SetColor(GRAY);
+    printf("\n执行完成！按回车键返回主菜单...");
     cin.ignore(100000, '\n');
     cin.get();
     ResetColor();
 }
 
-static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
+static tuple<int, string> Exec(const string& bin, const string& args) {
     string cmd = format("\"{}\" {} 2>&1", bin, args);
     FILE* pipe = _popen(cmd.c_str(), "r");
-    if (!pipe) {
-        int e = errno;
-        return { e, strerror(e) };
-    }
+    if (!pipe) return { -1, "" };
+
+    char buf[1024] = { 0 };
     string out;
-    char buf[1024];
     while (fgets(buf, sizeof(buf), pipe)) out += buf;
     int code = _pclose(pipe);
     return { code, out };
@@ -126,10 +114,7 @@ static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
 bool DownloadADB() {
     INFO("正在下载 ADB 工具包...");
     HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
-    if (res != S_OK) {
-        ERR("下载失败！请检查网络");
-        return false;
-    }
+    if (res != S_OK) { ERR("下载失败！请检查网络"); return false; }
     OK("ADB 下载完成！");
     return true;
 }
@@ -137,8 +122,7 @@ bool DownloadADB() {
 bool ExtractADB() {
     INFO("正在解压至 adb 文件夹...");
 
-    if (!fs::exists(ADB_DIR))
-        fs::create_directory(ADB_DIR);
+    if (!fs::exists(ADB_DIR)) fs::create_directory(ADB_DIR);
 
     string cmd = "powershell -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\" >nul 2>&1";
     system(cmd.c_str());
@@ -159,11 +143,7 @@ bool ExtractADB() {
 }
 
 void AutoSetupADB() {
-    if (fs::exists(ADB_EXE)) {
-        OK("adb 工具已存在");
-        return;
-    }
-
+    if (fs::exists(ADB_EXE)) { OK("adb 工具已存在"); return; }
     WARN("未检测到 adb 文件夹，自动部署中...");
     if (DownloadADB() && ExtractADB()) {
         fs::remove(ZIP_FILE);
@@ -172,9 +152,9 @@ void AutoSetupADB() {
 }
 
 void KillAdbFastboot() {
-    if (fs::exists(ADB_EXE))
+    if (fs::exists(ADB_EXE)) {
         system(format("\"{}\" kill-server >nul 2>&1", ADB_EXE.string()).c_str());
-
+    }
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
@@ -194,13 +174,11 @@ bool CheckDeviceSerial() {
     while (getline(iss, line)) {
         if (line.find("List of devices") != string::npos) continue;
         if (line.empty()) continue;
-        size_t space_pos = line.find(" ");
-        if (space_pos == string::npos) continue;
-        string serial = line.substr(0, space_pos);
-        string status = line.substr(space_pos);
-        if (serial.length() >= 10 && status.find("device") != string::npos) {
-            return true;
-        }
+        size_t sp = line.find(" ");
+        if (sp == string::npos) continue;
+        string serial = line.substr(0, sp);
+        string status = line.substr(sp);
+        if (serial.size() >= 10 && status.find("device") != string::npos) return true;
     }
     return false;
 }
@@ -208,11 +186,8 @@ bool CheckDeviceSerial() {
 void WaitForDeviceLoop() {
     INFO("等待设备连接，请开启USB调试...");
     while (true) {
-        if (CheckDeviceSerial()) {
-            OK("设备已成功连接！");
-            break;
-        }
-        this_thread::sleep_for(3s);
+        if (CheckDeviceSerial()) { OK("设备已成功连接！"); break; }
+        Sleep(3000);
     }
 }
 
@@ -228,12 +203,11 @@ void ShowDeviceInfo() {
     android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
 
-    SetColor(Color::YELLOW);
-    cout << "📱 手机品牌：" << brand << endl;
-    cout << "📱 手机型号：" << model << endl;
-    cout << "🤖 安卓版本：" << android << endl;
-    cout << "⚙️  处理器：" << cpu << endl;
-    cout << endl;
+    SetColor(YELLOW);
+    printf("📱 手机品牌：%s\n", brand.c_str());
+    printf("📱 手机型号：%s\n", model.c_str());
+    printf("🤖 安卓版本：%s\n", android.c_str());
+    printf("⚙️  处理器：%s\n\n", cpu.c_str());
     ResetColor();
 }
 
@@ -285,7 +259,7 @@ bool Func2_InstallRoot() {
 
     Loading("启动ROOT服务");
     Exec(ADB_EXE.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
-    this_thread::sleep_for(2s);
+    Sleep(2000);
 
     Loading("安装 KernelSU 管理器");
     Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
@@ -299,31 +273,28 @@ bool Func2_InstallRoot() {
 void Menu() {
     while (true) {
         system("cls");
-        SetColor(Color::CYAN);
-        cout << "  _   _  _   _    ____   _      ___  _   _  " << endl;
-        cout << " | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | " << endl;
-        cout << " |  \\| || | | |  | |_) || |     | | |  \\| | " << endl;
-        cout << " | |\\  || |_| |  |  __/ | |___  | | | |\\  | " << endl;
-        cout << " |_| \\_| \\___/   |_|    |_____| |___||_| \\_| " << endl;
-        cout << "                ___   ___  ___   " << endl;
-        cout << "               | _ \\ | _ \\| _ \\  " << endl;
-        cout << "               |  _/ |  _/|  _/  " << endl;
-        cout << "               |_|   |_|  |_|    " << endl;
-        cout << endl;
+        SetColor(CYAN);
+        printf("  _   _  _   _    ____   _      ___  _   _  \n");
+        printf(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | \n");
+        printf(" |  \\| || | | |  | |_) || |     | | |  \\| | \n");
+        printf(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | \n");
+        printf(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| \n");
+        printf("                ___   ___  ___   \n");
+        printf("               | _ \\ | _ \\| _ \\  \n");
+        printf("               |  _/ |  _/|  _/  \n");
+        printf("               |_|   |_|  |_|    \n\n");
 
-        SetColor(Color::PURPLE);
-        cout << "========================================================" << endl;
-        cout << "                 免解BL ROOT 工具" << endl;
-        cout << "========================================================" << endl;
-        cout << endl;
+        SetColor(PURPLE);
+        printf("========================================================\n");
+        printf("                 免解BL ROOT 工具\n");
+        printf("========================================================\n\n");
         ResetColor();
 
-        cout << "  [1] 设置SELinux宽容" << endl;
-        cout << "  [2] 安装ROOT权限" << endl;
-        cout << "  [3] 退出程序" << endl;
-        cout << endl;
-        SetColor(Color::GRAY);
-        cout << "请选择功能 >> ";
+        printf("  [1] 设置SELinux宽容\n");
+        printf("  [2] 安装ROOT权限\n");
+        printf("  [3] 退出程序\n\n");
+        SetColor(GRAY);
+        printf("请选择功能 >> ");
         ResetColor();
 
         string s;
@@ -336,8 +307,8 @@ void Menu() {
 }
 
 int main() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleA("免解BL ROOT工具"); // 极简标题 不乱码
+    system("chcp 65001 >nul");
+    SetConsoleTitleA("adb-root-tool");
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
     Menu();
