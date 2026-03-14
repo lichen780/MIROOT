@@ -23,12 +23,14 @@ using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 const fs::path cwd = fs::current_path();
+const fs::path ADB_DIR = cwd / "adb";
+const fs::path ADB_EXE = ADB_DIR / "adb.exe";
+const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
+
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
 const string TOOL_DIR = "platform-tools";
 
-fs::path adb_bin = cwd / "adb.exe";
-fs::path fastboot_bin = cwd / "fastboot.exe";
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
 
@@ -80,7 +82,6 @@ void ERR(const string& msg) { SetColor(Color::RED); println("❌ {}", msg); Rese
 void INFO(const string& msg) { SetColor(Color::BLUE); println("ℹ️  {}", msg); ResetColor(); }
 void WARN(const string& msg) { SetColor(Color::YELLOW); println("⚠️  {}", msg); ResetColor(); }
 
-// 按回车返回主菜单（修复版，无宏冲突）
 void PressAnyKeyBack() {
     SetColor(Color::GRAY);
     cout << "\n执行完成！按回车键返回主菜单...";
@@ -90,7 +91,7 @@ void PressAnyKeyBack() {
 }
 
 static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
-    string cmd = format("{} {} 2>&1", bin, args);
+    string cmd = format("\"{}\" {} 2>&1", bin, args);
     FILE* pipe = _popen(cmd.c_str(), "r");
     if (!pipe) {
         int e = errno;
@@ -104,7 +105,7 @@ static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
 }
 
 bool DownloadADB() {
-    INFO("正在下载 ADB 工具...");
+    INFO("正在下载 ADB 工具包...");
     HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
     if (res != S_OK) {
         ERR("下载失败！请检查网络");
@@ -114,37 +115,42 @@ bool DownloadADB() {
     return true;
 }
 
-bool ExtractZIP() {
-    INFO("正在解压 ADB 工具...");
-    system("powershell -Command \"Expand-Archive -Path platform-tools.zip -DestinationPath ./ -Force\" >nul 2>&1");
-    this_thread::sleep_for(5s);
-    OK("解压完成！");
+bool ExtractADB() {
+    INFO("正在解压至 adb 文件夹...");
+    if (!fs::exists(ADB_DIR)) fs::create_directories(ADB_DIR);
+    system(format("powershell -Command \"Expand-Archive -Path {} -DestinationPath {} -Force\" >nul 2>&1", ZIP_FILE, ADB_DIR.string()).c_str());
+    this_thread::sleep_for(6s);
+
+    fs::path extracted = ADB_DIR / TOOL_DIR;
+    if (fs::exists(extracted)) {
+        for (const auto& f : fs::directory_iterator(extracted)) {
+            fs::path dst = ADB_DIR / f.path().filename();
+            if (fs::exists(dst)) fs::remove(dst);
+            fs::rename(f.path(), dst);
+        }
+        fs::remove_all(extracted);
+    }
+    OK("ADB 解压完成！");
     return true;
 }
 
 void AutoSetupADB() {
-    if (fs::exists(adb_bin)) return;
-    WARN("未检测到 ADB 工具，正在自动下载部署...");
+    if (fs::exists(ADB_EXE)) {
+        OK("ADB 工具已存在，跳过下载");
+        return;
+    }
+
+    WARN("未检测到 adb 文件夹，开始自动部署...");
     if (!DownloadADB()) return;
-    if (!ExtractZIP()) return;
-
-    fs::path tool_path = cwd / TOOL_DIR;
-    if (fs::exists(tool_path / "adb.exe"))
-        fs::copy(tool_path / "adb.exe", cwd / "adb.exe", fs::copy_options::overwrite_existing);
-    if (fs::exists(tool_path / "fastboot.exe"))
-        fs::copy(tool_path / "fastboot.exe", cwd / "fastboot.exe", fs::copy_options::overwrite_existing);
-    if (fs::exists(tool_path / "AdbWinApi.dll"))
-        fs::copy(tool_path / "AdbWinApi.dll", cwd / "AdbWinApi.dll", fs::copy_options::overwrite_existing);
-    if (fs::exists(tool_path / "AdbWinUsbApi.dll"))
-        fs::copy(tool_path / "AdbWinUsbApi.dll", cwd / "AdbWinUsbApi.dll", fs::copy_options::overwrite_existing);
-
+    if (!ExtractADB()) return;
     fs::remove(ZIP_FILE);
-    fs::remove_all(tool_path);
-    OK("ADB 部署完成！");
+    OK("ADB 全自动部署完成！");
 }
 
 void KillAdbFastboot() {
-    system("adb kill-server >nul 2>&1");
+    if (fs::exists(ADB_EXE)) {
+        system(format("\"{}\" kill-server >nul 2>&1", ADB_EXE.string()).c_str());
+    }
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
@@ -158,7 +164,7 @@ BOOL WINAPI ConsoleHandler(DWORD signal) {
 }
 
 bool CheckDeviceSerial() {
-    auto [code, output] = Exec(adb_bin.string(), "devices");
+    auto [code, output] = Exec(ADB_EXE.string(), "devices");
     istringstream iss(output);
     string line;
     while (getline(iss, line)) {
@@ -188,14 +194,14 @@ void WaitForDeviceLoop() {
 
 void ShowDeviceInfo() {
     Loading("正在获取手机信息");
-    auto [_, brand] = Exec(adb_bin.string(), "shell getprop ro.product.brand");
-    auto [__, model] = Exec(adb_bin.string(), "shell getprop ro.product.model");
-    auto [___, android] = Exec(adb_bin.string(), "shell getprop ro.build.version.release");
-    auto [____, cpu] = Exec(adb_bin.string(), "shell getprop ro.product.board");
+    auto [_, brand] = Exec(ADB_EXE.string(), "shell getprop ro.product.brand");
+    auto [__, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
+    auto [___, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
+    auto [____, cpu] = Exec(ADB_EXE.string(), "shell getprop ro.product.board");
 
     brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
-    android.erase(remove_if(android.begin(), android.end(), ::isspace), model.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
 
     SetColor(Color::YELLOW);
@@ -207,14 +213,14 @@ void ShowDeviceInfo() {
 }
 
 bool Check1() {
-    if (!fs::exists(adb_bin)) { ERR("缺少 adb 文件"); return false; }
-    if (!fs::exists(fastboot_bin)) { ERR("缺少 fastboot 文件"); return false; }
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
     return true;
 }
 
 bool Check2() {
-    if (!fs::exists(adb_bin)) { ERR("缺少 adb 文件"); return false; }
-    if (!fs::exists(fastboot_bin)) { ERR("缺少 fastboot 文件"); return false; }
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
     if (!fs::exists(ksud)) { ERR("缺少 ksud 文件"); return false; }
     if (!fs::exists(ksum)) { ERR("缺少 ksu.apk 文件"); return false; }
     return true;
@@ -226,15 +232,15 @@ bool Func1_SetSELinux() {
     ShowDeviceInfo();
 
     Loading("重启至 Fastboot");
-    Exec(adb_bin.string(), "reboot bootloader");
+    Exec(ADB_EXE.string(), "reboot bootloader");
     INFO("请确认进入 Fastboot 后按回车");
     PressAnyKeyBack();
 
     Loading("设置 SELinux 为宽容");
-    Exec(fastboot_bin.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
+    Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
 
     Loading("重启系统");
-    Exec(fastboot_bin.string(), "continue");
+    Exec(FASTBOOT_EXE.string(), "continue");
     INFO("请等待开机后按回车");
     PressAnyKeyBack();
 
@@ -249,16 +255,16 @@ bool Func2_InstallRoot() {
     ShowDeviceInfo();
 
     Loading("推送ROOT组件");
-    Exec(adb_bin.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
-    Exec(adb_bin.string(), "shell chmod 755 /data/local/tmp/ksud");
+    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
+    Exec(ADB_EXE.string(), "shell chmod 755 /data/local/tmp/ksud");
 
     Loading("启动ROOT服务");
-    Exec(adb_bin.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
+    Exec(ADB_EXE.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
     this_thread::sleep_for(2s);
 
     Loading("安装 KernelSU 管理器");
-    Exec(adb_bin.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
-    Exec(adb_bin.string(), "shell pm install -r /data/local/tmp/ksu.apk");
+    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
+    Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/ksu.apk");
 
     OK("ROOT 安装完成！请打开 KernelSU 授权");
     PressAnyKeyBack();
