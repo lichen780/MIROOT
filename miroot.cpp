@@ -1,11 +1,17 @@
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
 #include <filesystem>
+#include <iostream>
+#include <format>
 #include <tuple>
-#include <sstream>
+#include <chrono>
+#include <thread>
+#include <cstdio>
+#include <limits>
 #include <algorithm>
+#include <sstream>
+#include <windows.h>
+#include <string>
+#include <urlmon.h>
+#include <shellapi.h>
 
 #pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "shell32.lib")
@@ -18,165 +24,293 @@ const fs::path ADB_DIR = cwd / "adb";
 const fs::path ADB_EXE = ADB_DIR / "adb.exe";
 const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 
-const char* ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
-const char* ZIP_FILE = "platform-tools.zip";
+const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
+const string ZIP_FILE = "platform-tools.zip";
 
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
+
+enum Color {
+    RED = 12, GREEN = 10, YELLOW = 14, BLUE = 9,
+    PURPLE = 13, CYAN = 11, WHITE = 15, GRAY = 8
+};
 
 void SetColor(int color) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
 
-void OK(const char* msg) {
-    SetColor(10);
-    printf("✅ %s\n", msg);
-    SetColor(15);
+void ResetColor() {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
 }
 
-void INFO(const char* msg) {
-    SetColor(9);
-    printf("ℹ️  %s\n", msg);
-    SetColor(15);
+void Loading(const string& text) {
+    SetColor(CYAN);
+    printf("%s ", text.c_str());
+    const char ch[] = "|/-\\";
+    for (int i = 0; i < 12; i++) {
+        printf("\b%c", ch[i % 4]);
+        fflush(stdout);
+        Sleep(90);
+    }
+    printf("\b✓\n");
+    ResetColor();
 }
 
-void WARN(const char* msg) {
-    SetColor(14);
-    printf("⚠️  %s\n", msg);
-    SetColor(15);
+void Title(const string& title) {
+    system("cls");
+    SetColor(PURPLE);
+    printf("========================================================\n");
+    SetColor(CYAN);
+    printf("                   %s\n", title.c_str());
+    SetColor(PURPLE);
+    printf("========================================================\n\n");
+    ResetColor();
 }
 
-void ERR(const char* msg) {
-    SetColor(12);
-    printf("❌ %s\n", msg);
-    SetColor(15);
+void OK(const string& msg) {
+    SetColor(GREEN);
+    printf("✅ %s\n", msg.c_str());
+    ResetColor();
+}
+
+void ERR(const string& msg) {
+    SetColor(RED);
+    printf("❌ %s\n", msg.c_str());
+    ResetColor();
+}
+
+void INFO(const string& msg) {
+    SetColor(BLUE);
+    printf("ℹ️  %s\n", msg.c_str());
+    ResetColor();
+}
+
+void WARN(const string& msg) {
+    SetColor(YELLOW);
+    printf("⚠️  %s\n", msg.c_str());
+    ResetColor();
 }
 
 void PressAnyKeyBack() {
+    SetColor(GRAY);
     printf("\n执行完成！按回车键返回主菜单...");
-    while (getchar() != '\n');
-    getchar();
+    cin.ignore(100000, '\n');
+    cin.get();
+    ResetColor();
 }
 
-void DownloadADB() {
+static tuple<int, string> Exec(const string& bin, const string& args) {
+    string cmd = format("\"{}\" {} 2>&1", bin, args);
+    FILE* pipe = _popen(cmd.c_str(), "r");
+    if (!pipe) return { -1, "" };
+
+    char buf[1024] = { 0 };
+    string out;
+    while (fgets(buf, sizeof(buf), pipe)) out += buf;
+    int code = _pclose(pipe);
+    return { code, out };
+}
+
+bool DownloadADB() {
     INFO("正在下载 ADB 工具包...");
-    HRESULT r = URLDownloadToFileA(NULL, ADB_URL, ZIP_FILE, 0, NULL);
-    if (r == S_OK) OK("ADB 下载完成！");
-    else ERR("下载失败！");
+    HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
+    if (res != S_OK) { ERR("下载失败！请检查网络"); return false; }
+    OK("ADB 下载完成！");
+    return true;
 }
 
-void ExtractADB() {
+bool ExtractADB() {
     INFO("正在解压至 adb 文件夹...");
+
     if (!fs::exists(ADB_DIR)) fs::create_directory(ADB_DIR);
-    
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-        "powershell -Command \"Expand-Archive -Path '%s' -DestinationPath '%s' -Force\" >nul 2>&1",
-        ZIP_FILE, ADB_DIR.string().c_str());
-    system(cmd);
-    Sleep(5000);
 
-    fs::path src = ADB_DIR / "platform-tools";
-    if (fs::exists(src)) {
-        for (auto& f : fs::directory_iterator(src)) {
-            fs::path d = ADB_DIR / f.path().filename();
-            if (fs::exists(d)) fs::remove(d);
-            fs::rename(f.path(), d);
+    string cmd = "powershell -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\" >nul 2>&1";
+    system(cmd.c_str());
+    Sleep(6000);
+
+    fs::path extracted = ADB_DIR / "platform-tools";
+    if (fs::exists(extracted)) {
+        for (auto& f : fs::directory_iterator(extracted)) {
+            fs::path dest = ADB_DIR / f.path().filename();
+            if (fs::exists(dest)) fs::remove(dest);
+            fs::rename(f.path(), dest);
         }
-        fs::remove_all(src);
+        fs::remove_all(extracted);
     }
+
     OK("ADB 解压完成！");
+    return true;
 }
 
-void InitADB() {
-    if (fs::exists(ADB_EXE)) {
-        OK("adb 工具已存在");
-        return;
-    }
+void AutoSetupADB() {
+    if (fs::exists(ADB_EXE)) { OK("adb 工具已存在"); return; }
     WARN("未检测到 adb 文件夹，自动部署中...");
-    DownloadADB();
-    ExtractADB();
-    if (fs::exists(ZIP_FILE)) fs::remove(ZIP_FILE);
-    OK("ADB 部署完成！");
-}
-
-bool CheckDevice() {
-    char buf[2048];
-    FILE* f = _popen(("\"" + ADB_EXE.string() + "\" devices 2>&1").c_str(), "r");
-    if (!f) return false;
-    bool ok = false;
-    while (fgets(buf, sizeof(buf), f)) {
-        string s = buf;
-        if (s.find("device") != string::npos && s.size() > 20) ok = true;
+    if (DownloadADB() && ExtractADB()) {
+        fs::remove(ZIP_FILE);
+        OK("ADB 部署完成！");
     }
-    _pclose(f);
-    return ok;
 }
 
-void WaitDevice() {
+void KillAdbFastboot() {
+    if (fs::exists(ADB_EXE)) {
+        system(format("\"{}\" kill-server >nul 2>&1", ADB_EXE.string()).c_str());
+    }
+    system("taskkill /f /im adb.exe >nul 2>&1");
+    system("taskkill /f /im fastboot.exe >nul 2>&1");
+}
+
+BOOL WINAPI ConsoleHandler(DWORD signal) {
+    if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT) {
+        KillAdbFastboot();
+        return TRUE;
+    }
+    return FALSE;
+}
+
+bool CheckDeviceSerial() {
+    auto [code, output] = Exec(ADB_EXE.string(), "devices");
+    istringstream iss(output);
+    string line;
+    while (getline(iss, line)) {
+        if (line.find("List of devices") != string::npos) continue;
+        if (line.empty()) continue;
+        size_t sp = line.find(" ");
+        if (sp == string::npos) continue;
+        string serial = line.substr(0, sp);
+        string status = line.substr(sp);
+        if (serial.size() >= 10 && status.find("device") != string::npos) return true;
+    }
+    return false;
+}
+
+void WaitForDeviceLoop() {
     INFO("等待设备连接，请开启USB调试...");
-    while (!CheckDevice()) Sleep(1000);
-    OK("设备已连接！");
+    while (true) {
+        if (CheckDeviceSerial()) { OK("设备已成功连接！"); break; }
+        Sleep(3000);
+    }
 }
 
-void Menu();
+void ShowDeviceInfo() {
+    Loading("正在获取手机信息");
+    auto [_, brand] = Exec(ADB_EXE.string(), "shell getprop ro.product.brand");
+    auto [__, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
+    auto [___, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
+    auto [____, cpu] = Exec(ADB_EXE.string(), "shell getprop ro.product.board");
 
-void Func1() {
-    system("cls");
-    INFO("=== 设置 SELinux ===");
-    WaitDevice();
-    system(("\"" + ADB_EXE.string() + "\" reboot bootloader").c_str());
-    INFO("重启到 Fastboot，请按回车继续");
-    getchar();
-    system(("\"" + FASTBOOT_EXE.string() + "\" oem set-gpu-preemption 0 androidboot.selinux=permissive").c_str());
-    system(("\"" + FASTBOOT_EXE.string() + "\" continue").c_str());
-    OK("设置完成！");
-    PressAnyKeyBack();
-    Menu();
+    brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
+    model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
+    android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
+    cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
+
+    SetColor(YELLOW);
+    printf("📱 手机品牌：%s\n", brand.c_str());
+    printf("📱 手机型号：%s\n", model.c_str());
+    printf("🤖 安卓版本：%s\n", android.c_str());
+    printf("⚙️  处理器：%s\n\n", cpu.c_str());
+    ResetColor();
 }
 
-void Func2() {
-    system("cls");
-    INFO("=== 安装 ROOT ===");
-    WaitDevice();
-    system(("\"" + ADB_EXE.string() + "\" push \"" + ksud.string() + "\" /data/local/tmp/ksud").c_str());
-    system(("\"" + ADB_EXE.string() + "\" shell chmod 755 /data/local/tmp/ksud").c_str());
-    system(("\"" + ADB_EXE.string() + "\" shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60").c_str());
-    system(("\"" + ADB_EXE.string() + "\" push \"" + ksum.string() + "\" /data/local/tmp/ksu.apk").c_str());
-    system(("\"" + ADB_EXE.string() + "\" shell pm install -r /data/local/tmp/ksu.apk").c_str());
-    OK("ROOT 安装完成！");
+bool Check1() {
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
+    return true;
+}
+
+bool Check2() {
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
+    if (!fs::exists(ksud)) { ERR("缺少 ksud 文件"); return false; }
+    if (!fs::exists(ksum)) { ERR("缺少 ksu.apk 文件"); return false; }
+    return true;
+}
+
+bool Func1_SetSELinux() {
+    Title("免解BL - 设置SELinux宽容模式");
+    WaitForDeviceLoop();
+    ShowDeviceInfo();
+
+    Loading("重启至 Fastboot");
+    Exec(ADB_EXE.string(), "reboot bootloader");
+    INFO("进入 Fastboot 后按回车");
     PressAnyKeyBack();
-    Menu();
+
+    Loading("设置 SELinux 为宽容");
+    Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
+
+    Loading("重启系统");
+    Exec(FASTBOOT_EXE.string(), "continue");
+    INFO("开机后按回车");
+    PressAnyKeyBack();
+
+    OK("SELinux 设置完成！");
+    PressAnyKeyBack();
+    return true;
+}
+
+bool Func2_InstallRoot() {
+    Title("免解BL - 安装ROOT权限");
+    WaitForDeviceLoop();
+    ShowDeviceInfo();
+
+    Loading("推送ROOT组件");
+    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksud", ksud.string()));
+    Exec(ADB_EXE.string(), "shell chmod 755 /data/local/tmp/ksud");
+
+    Loading("启动ROOT服务");
+    Exec(ADB_EXE.string(), "shell service call miui.mqsas.IMQSNative 21 i32 1 s16 '/data/local/tmp/ksud' i32 1 s16 'late-load' i32 60");
+    Sleep(2000);
+
+    Loading("安装 KernelSU 管理器");
+    Exec(ADB_EXE.string(), format("push {} /data/local/tmp/ksu.apk", ksum.string()));
+    Exec(ADB_EXE.string(), "shell pm install -r /data/local/tmp/ksu.apk");
+
+    OK("ROOT 安装完成！请打开 KernelSU 授权");
+    PressAnyKeyBack();
+    return true;
 }
 
 void Menu() {
-    system("cls");
-    printf("=========================================\n");
-    printf("          免解BL ROOT 工具\n");
-    printf("=========================================\n\n");
-    printf("  1. 设置 SELinux 宽容\n");
-    printf("  2. 安装 ROOT 权限\n");
-    printf("  3. 退出\n\n");
-    printf("请选择：");
-    
-    char c = getchar();
-    if (c == '1') Func1();
-    if (c == '2') Func2();
-    if (c == '3') exit(0);
-}
+    while (true) {
+        system("cls");
+        SetColor(CYAN);
+        printf("  _   _  _   _    ____   _      ___  _   _  \n");
+        printf(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | \n");
+        printf(" |  \\| || | | |  | |_) || |     | | |  \\| | \n");
+        printf(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | \n");
+        printf(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| \n");
+        printf("                ___   ___  ___   \n");
+        printf("               | _ \\ | _ \\| _ \\  \n");
+        printf("               |  _/ |  _/|  _/  \n");
+        printf("               |_|   |_|  |_|    \n\n");
 
-BOOL WINAPI Handler(DWORD s) {
-    if (s == CTRL_CLOSE_EVENT) {
-        system(("taskkill /f /im adb.exe fastboot.exe >nul 2>&1"));
+        SetColor(PURPLE);
+        printf("========================================================\n");
+        printf("                 免解BL ROOT 工具\n");
+        printf("========================================================\n\n");
+        ResetColor();
+
+        printf("  [1] 设置SELinux宽容\n");
+        printf("  [2] 安装ROOT权限\n");
+        printf("  [3] 退出程序\n\n");
+        SetColor(GRAY);
+        printf("请选择功能 >> ");
+        ResetColor();
+
+        string s;
+        getline(cin, s);
+
+        if (s == "1") { if (Check1()) Func1_SetSELinux(); }
+        if (s == "2") { if (Check2()) Func2_InstallRoot(); }
+        if (s == "3") { KillAdbFastboot(); break; }
     }
-    return TRUE;
 }
 
 int main() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleA("免解BL ROOT 工具");  // ✅ 正常中文标题，不乱码
-    SetConsoleCtrlHandler(Handler, TRUE);
-    InitADB();
+    system("chcp 65001 >nul");
+    SetConsoleTitleA("adb-root-tool");
+    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+    AutoSetupADB();
     Menu();
     return 0;
 }
