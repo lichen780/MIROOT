@@ -35,15 +35,45 @@ jobs:
           chcp 65001
           
           # 下载 UPX
+          Write-Host "正在下载 UPX..."
           Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
           
           # 解压 ZIP
-          Expand-Archive -Path "upx.zip" -DestinationPath "."
+          Write-Host "正在解压 UPX..."
+          Expand-Archive -Path "upx.zip" -DestinationPath "." -Force
+          
+          # 检查文件是否存在
+          Write-Host "检查文件..."
+          Get-ChildItem
+          
+          # 检查中文文件是否存在
+          $sourceFile = "免解 BL ROOT 工具.exe"
+          if (Test-Path $sourceFile) {
+              Write-Host "找到文件: $sourceFile"
+              $fileInfo = Get-Item $sourceFile
+              Write-Host "文件大小: $($fileInfo.Length) 字节"
+          } else {
+              Write-Host "错误: 找不到文件 $sourceFile"
+              Write-Host "当前目录内容:"
+              Get-ChildItem
+              exit 1
+          }
           
           # 执行压缩
+          Write-Host "开始压缩..."
           .\upx-5.1.1-win64\upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
           
+          # 检查压缩结果
+          if (Test-Path $sourceFile) {
+              Write-Host "压缩完成!"
+              $fileInfo = Get-Item $sourceFile
+              Write-Host "压缩后文件大小: $($fileInfo.Length) 字节"
+          } else {
+              Write-Host "警告: 文件丢失或未压缩"
+          }
+          
           # 清理
+          Write-Host "清理临时文件..."
           Remove-Item -Path "upx.zip" -Force
           Remove-Item -Path "upx-5.1.1-win64" -Recurse -Force
 
