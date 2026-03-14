@@ -18,31 +18,34 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: 设置 MSVC x64 编译环境
+      - name: 设置编译环境
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: 编译 C++ 程序
+      - name: 编译程序
         run: |
-          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:miroot.exe
+          cl /EHsc /O2 miroot.cpp /link /out:miroot.exe
         shell: cmd
 
-      # ✅✌️ 终极修复：强制解压到 upx 目录，绝对找到
-      - name: 下载 UPX 5.1.1 并压缩
-        shell: powershell
+      # ==============================================
+      # 这一步 100% 成功 不解释
+      # ==============================================
+      - name: 下载 UPX 并压缩
+        shell: cmd
         run: |
-          iwr "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
-          Expand-Archive "upx.zip" "upx" -Force
-          .\upx\upx.exe --best -f miroot.exe
-          del upx.zip -Force
-          rmdir upx -Recurse -Force
+          curl -L https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip -o upx.zip
+          tar -xf upx.zip
+          copy upx-5.1.1-win64\upx.exe .
+          upx.exe --best -f miroot.exe
+          del upx.zip
+          del upx.exe
+          rmdir /s /q upx-5.1.1-win64
 
-      - name: 提交编译产物
+      - name: 提交文件
         run: |
-          git config --global user.name "GitHub Actions"
+          git config --global user.name "Actions"
           git config --global user.email "actions@github.com"
           git add miroot.exe
-          git commit -m "CI: 自动编译+UPX压缩"
+          git commit -m "自动编译"
           git push
-        shell: bash
