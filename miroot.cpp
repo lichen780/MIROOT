@@ -278,32 +278,26 @@ bool Func1_SetSELinux() {
         alreadyInFastboot = true;
         OK("检测到手机已处于 Fastboot 模式，跳过重启！");
         Sleep(1500);
-        ShowFastbootDeviceInfo(); // 直接显示Fastboot信息
     } else {
-        // 不在Fastboot：正常ADB连接
         WaitForDeviceLoop();
         ShowDeviceInfo();
 
         Loading("重启至 Fastboot 模式");
         Exec(ADB_EXE.string(), "reboot bootloader");
         
-        // 提示 + 原生暂停（不新增函数！）
         INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
         INFO("确认进入后 → 按回车键继续执行命令");
-        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // 清空缓存
-        cin.get(); // 只按回车继续，不输出文字、不返回菜单
+
+        // 修复编译错误
+        cin.ignore((std::numeric_limits<std::streamsize>::max)(), '\n');
+        cin.get();
     }
 
-    // ============================
-    // 最终确认（同样用原生暂停）
-    // ============================
     INFO("准备执行 SELinux 设置命令");
     INFO("确认已在 Fastboot → 按回车执行");
     cin.get();
 
-    // ============================
-    // 真正执行命令
-    // ============================
+    // 执行核心命令
     Loading("正在设置 SELinux 为宽容模式");
     Exec(FASTBOOT_EXE.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
 
@@ -314,7 +308,7 @@ bool Func1_SetSELinux() {
     cin.get();
 
     OK("SELinux 宽容模式设置完成！");
-    PressAnyKeyBack(); // 只有最后一步用这个返回菜单
+    PressAnyKeyBack();
     return true;
 }
 
