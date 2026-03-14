@@ -27,55 +27,25 @@ jobs:
         shell: cmd
 
       - name: UPX 极致压缩
-        shell: powershell
         run: |
-          # 设置编码确保中文文件名正常处理
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          [Console]::InputEncoding = [System.Text.Encoding]::UTF8
-          chcp 65001
+          # 临时重命名为英文文件名
+          ren "免解 BL ROOT 工具.exe" "miroot_temp.exe"
           
           # 下载 UPX
-          Write-Host "正在下载 UPX..."
-          Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
+          curl -L https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip -o upx.zip
+          tar -xf upx.zip
+          copy upx-5.1.1-win64\upx.exe .
           
-          # 解压 ZIP
-          Write-Host "正在解压 UPX..."
-          Expand-Archive -Path "upx.zip" -DestinationPath "." -Force
+          # 压缩临时文件
+          upx.exe --best --ultra-brute -f "miroot_temp.exe"
           
-          # 检查文件是否存在
-          Write-Host "检查文件..."
-          Get-ChildItem
-          
-          # 检查中文文件是否存在
-          $sourceFile = "免解 BL ROOT 工具.exe"
-          if (Test-Path $sourceFile) {
-              Write-Host "找到文件: $sourceFile"
-              $fileInfo = Get-Item $sourceFile
-              Write-Host "文件大小: $($fileInfo.Length) 字节"
-          } else {
-              Write-Host "错误: 找不到文件 $sourceFile"
-              Write-Host "当前目录内容:"
-              Get-ChildItem
-              exit 1
-          }
-          
-          # 执行压缩
-          Write-Host "开始压缩..."
-          .\upx-5.1.1-win64\upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
-          
-          # 检查压缩结果
-          if (Test-Path $sourceFile) {
-              Write-Host "压缩完成!"
-              $fileInfo = Get-Item $sourceFile
-              Write-Host "压缩后文件大小: $($fileInfo.Length) 字节"
-          } else {
-              Write-Host "警告: 文件丢失或未压缩"
-          }
+          # 重命名为中文文件名
+          ren "miroot_temp.exe" "免解 BL ROOT 工具.exe"
           
           # 清理
-          Write-Host "清理临时文件..."
-          Remove-Item -Path "upx.zip" -Force
-          Remove-Item -Path "upx-5.1.1-win64" -Recurse -Force
+          del upx.zip upx.exe
+          rmdir /s /q upx-5.1.1-win64
+        shell: cmd
 
       - name: 提交编译产物
         run: |
