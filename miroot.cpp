@@ -425,6 +425,7 @@ void Menu() {
         DrawAnimatedMenu();
         string s;
         cin >> s;
+        cin.ignore(); 
 
         if (s == "1") { if (Check1()) Func1_SetSELinux(); }
         if (s == "2") { if (Check2()) Func2_InstallKernelSU(); }
