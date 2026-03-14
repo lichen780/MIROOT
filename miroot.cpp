@@ -68,18 +68,37 @@ void Loading(const string& text) {
 void Title(const string& title) {
     system("cls");
     SetColor(Color::PURPLE);
-    println("========================================================");
+    cout << "========================================================\n";
     SetColor(Color::CYAN);
-    println("                   {}", title);
+    cout << "                   " << title << "\n";
     SetColor(Color::PURPLE);
-    println("========================================================\n");
+    cout << "========================================================\n\n";
     ResetColor();
 }
 
-void OK(const string& msg) { SetColor(Color::GREEN); println("✅ {}", msg); ResetColor(); }
-void ERR(const string& msg) { SetColor(Color::RED); println("❌ {}", msg); ResetColor(); }
-void INFO(const string& msg) { SetColor(Color::BLUE); println("ℹ️  {}", msg); ResetColor(); }
-void WARN(const string& msg) { SetColor(Color::YELLOW); println("⚠️  {}", msg); ResetColor(); }
+void OK(const string& msg) {
+    SetColor(Color::GREEN);
+    cout << "✅ " << msg << "\n";
+    ResetColor();
+}
+
+void ERR(const string& msg) {
+    SetColor(Color::RED);
+    cout << "❌ " << msg << "\n";
+    ResetColor();
+}
+
+void INFO(const string& msg) {
+    SetColor(Color::BLUE);
+    cout << "ℹ️  " << msg << "\n";
+    ResetColor();
+}
+
+void WARN(const string& msg) {
+    SetColor(Color::YELLOW);
+    cout << "⚠️  " << msg << "\n";
+    ResetColor();
+}
 
 void PressAnyKeyBack() {
     SetColor(Color::GRAY);
@@ -186,7 +205,7 @@ bool CheckDeviceSerial() {
 }
 
 void WaitForDeviceLoop() {
-    INFO("等待设备连接，请开启USB调试...\n");
+    INFO("等待设备连接，请开启USB调试...");
     while (true) {
         if (CheckDeviceSerial()) {
             OK("设备已成功连接！");
@@ -209,10 +228,10 @@ void ShowDeviceInfo() {
     cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
 
     SetColor(Color::YELLOW);
-    println("📱 手机品牌：{}", brand);
-    println("📱 手机型号：{}", model);
-    println("🤖 安卓版本：{}", android);
-    println("⚙️  处理器：{}\n", cpu);
+    cout << "📱 手机品牌：" << brand << "\n";
+    cout << "📱 手机型号：" << model << "\n";
+    cout << "🤖 安卓版本：" << android << "\n";
+    cout << "⚙️  处理器：" << cpu << "\n\n";
     ResetColor();
 }
 
@@ -279,27 +298,25 @@ void Menu() {
     while (true) {
         system("cls");
         SetColor(Color::CYAN);
-        println("  _   _  _   _    ____   _      ___  _   _  ");
-        println(" | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | ");
-        println(" |  \\| || | | |  | |_) || |     | | |  \\| | ");
-        println(" | |\\  || |_| |  |  __/ | |___  | | | |\\  | ");
-        println(" |_| \\_| \\___/   |_|    |_____| |___||_| \\_| ");
-        println("                ___   ___  ___   ");
-        println("               | _ \\ | _ \\| _ \\  ");
-        println("               |  _/ |  _/|  _/  ");
-        println("               |_|   |_|  |_|    ");
+        cout << "  _   _  _   _    ____   _      ___  _   _  \n";
+        cout << " | \\ | || | | |  |  _ \\ | |    |_ _|| \\ | | \n";
+        cout << " |  \\| || | | |  | |_) || |     | | |  \\| | \n";
+        cout << " | |\\  || |_| |  |  __/ | |___  | | | |\\  | \n";
+        cout << " |_| \\_| \\___/   |_|    |_____| |___||_| \\_| \n";
+        cout << "                ___   ___  ___   \n";
+        cout << "               | _ \\ | _ \\| _ \\  \n";
+        cout << "               |  _/ |  _/|  _/  \n";
+        cout << "               |_|   |_|  |_|    \n\n";
 
         SetColor(Color::PURPLE);
-        println("========================================================");
-        println("                 免解BL ROOT 工具");
-        println("========================================================");
+        cout << "========================================================\n";
+        cout << "                 免解BL ROOT 工具\n";
+        cout << "========================================================\n\n";
         ResetColor();
 
-        println("");
-        println("  [1] 设置SELinux宽容");
-        println("  [2] 安装ROOT权限");
-        println("  [3] 退出程序");
-        println("");
+        cout << "  [1] 设置SELinux宽容\n";
+        cout << "  [2] 安装ROOT权限\n";
+        cout << "  [3] 退出程序\n\n";
         SetColor(Color::GRAY);
         cout << "请选择功能 >> ";
         ResetColor();
