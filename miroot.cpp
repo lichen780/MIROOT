@@ -278,24 +278,20 @@ bool Func1_SetSELinux() {
         alreadyInFastboot = true;
         OK("检测到手机已处于 Fastboot 模式，跳过重启！");
         Sleep(1500);
-    } else {
+    }
+
+    if (!alreadyInFastboot) {
         WaitForDeviceLoop();
         ShowDeviceInfo();
 
         Loading("重启至 Fastboot 模式");
         Exec(ADB_EXE.string(), "reboot bootloader");
-        
-        INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
-        INFO("确认进入后 → 按回车键继续执行命令");
 
-        // 修复编译错误
+        INFO("请等待手机完全进入 Fastboot 模式（米兔/机器人界面）");
+        INFO("确认进入后 → 按回车键直接执行命令！");
         cin.ignore((std::numeric_limits<std::streamsize>::max)(), '\n');
         cin.get();
     }
-
-    INFO("准备执行 SELinux 设置命令");
-    INFO("确认已在 Fastboot → 按回车执行");
-    cin.get();
 
     // 执行核心命令
     Loading("正在设置 SELinux 为宽容模式");
@@ -304,10 +300,52 @@ bool Func1_SetSELinux() {
     Loading("正在重启手机系统");
     Exec(FASTBOOT_EXE.string(), "continue");
 
-    INFO("手机开机完成后按回车");
-    cin.get();
+    // ======================
+    // 智能等待设备：最多30秒，检测到就继续
+    // ======================
+    INFO("等待手机开机并重新连接... (最长等待30秒)");
+    bool device_online = false;
+    auto start = chrono::steady_clock::now();
 
-    OK("SELinux 宽容模式设置完成！");
+    while (true) {
+        // 检测是否超时30秒
+        auto now = chrono::steady_clock::now();
+        auto sec = chrono::duration_cast<chrono::seconds>(now - start).count();
+        if (sec >= 30) {
+            ERR("⏰ 等待设备超时(30秒)，自动退出检测！");
+            break;
+        }
+
+        // 检测设备是否已连接
+        if (CheckDeviceSerial()) {
+            device_online = true;
+            OK("设备已重新上线！");
+            Sleep(800);  // 轻微缓冲，确保系统完全启动
+            break;
+        }
+
+        Sleep(800); // 每800ms检测一次，不占用CPU
+    }
+
+    // ======================
+    // 检测 SELinux 状态
+    // ======================
+    if (device_online) {
+        Loading("正在检测 SELinux 模式");
+        auto [_, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
+
+        selinux.erase(remove_if(selinux.begin(), selinux.end(), [](char c) {
+            return c == '\n' || c == '\r' || c == ' ';
+        }), selinux.end());
+
+        if (selinux == "Permissive" || selinux == "permissive") {
+            OK("✅ SELinux 已成功设置为宽容模式！");
+        } else {
+            WARN("⚠️ 当前 SELinux：" + selinux);
+            ERR("❌ 设置未生效，请重试！");
+        }
+    }
+
     PressAnyKeyBack();
     return true;
 }
