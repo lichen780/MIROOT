@@ -29,10 +29,18 @@ jobs:
       - name: UPX 极致压缩
         shell: cmd
         run: |
+          # 设置控制台编码为 UTF-8
+          chcp 65001
+          
+          # 下载并解压 UPX
           curl -L https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip -o upx.zip
           tar -xf upx.zip
           copy upx-5.1.1-win64\upx.exe .
+          
+          # 压缩程序
           upx.exe --best --ultra-brute -f "免解 BL ROOT 工具.exe"
+          
+          # 清理 UPX
           del upx.zip upx.exe
           rmdir /s /q upx-5.1.1-win64
 
