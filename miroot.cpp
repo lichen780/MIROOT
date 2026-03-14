@@ -120,7 +120,7 @@ bool DownloadADB() {
 }
 
 bool ExtractADB() {
-    INFO("正在解压至 adb 文件夹...");
+    INFO("正在解压至 ADB 文件夹...");
 
     if (!fs::exists(ADB_DIR)) fs::create_directory(ADB_DIR);
 
@@ -143,8 +143,8 @@ bool ExtractADB() {
 }
 
 void AutoSetupADB() {
-    if (fs::exists(ADB_EXE)) { OK("adb 工具已存在"); return; }
-    WARN("未检测到 adb 工具，自动部署中...");
+    if (fs::exists(ADB_EXE)) { OK("ADB 工具已存在"); return; }
+    WARN("未检测到 ADB 工具，自动部署中...");
     if (DownloadADB() && ExtractADB()) {
         fs::remove(ZIP_FILE);
         OK("ADB 部署完成！");
@@ -212,13 +212,13 @@ void ShowDeviceInfo() {
 }
 
 bool Check1() {
-    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
     return true;
 }
 
 bool Check2() {
-    if (!fs::exists(ADB_EXE)) { ERR("缺少 adb.exe"); return false; }
+    if (!fs::exists(ADB_EXE)) { ERR("缺少 ADB.exe"); return false; }
     if (!fs::exists(FASTBOOT_EXE)) { ERR("缺少 fastboot.exe"); return false; }
     if (!fs::exists(ksud)) { ERR("缺少 ksud 文件"); return false; }
     if (!fs::exists(ksum)) { ERR("缺少 ksu.apk 文件"); return false; }
@@ -307,8 +307,8 @@ void Menu() {
 }
 
 int main() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleW(L"免解 BL ROOT 工具");
+    system("chcp 65001 >nul");
+    SetConsoleTitleW(L"\u514D\u89E3BL ROOT \u5DE5\u5177");
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
     Menu();
