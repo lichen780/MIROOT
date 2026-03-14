@@ -28,8 +28,7 @@ const fs::path ADB_EXE = ADB_DIR / "adb.exe";
 const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
-const string ZIP_FILE = "platform-tools.zip";
-const string TOOL_DIR = "platform-tools";
+const string ZIP_FILE = cwd.string() + "\\platform-tools.zip";
 
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
@@ -115,42 +114,47 @@ bool DownloadADB() {
     return true;
 }
 
+// ===================== 【正确解压】直接解压到 当前目录 \\ adb =====================
 bool ExtractADB() {
     INFO("正在解压至 adb 文件夹...");
-    if (!fs::exists(ADB_DIR)) fs::create_directories(ADB_DIR);
-    system(format("powershell -Command \"Expand-Archive -Path {} -DestinationPath {} -Force\" >nul 2>&1", ZIP_FILE, ADB_DIR.string()).c_str());
+    
+    if (!fs::exists(ADB_DIR))
+        fs::create_directory(ADB_DIR);
+
+    system(format(R"(powershell -Command "Expand-Archive -Path '{}' -DestinationPath '{}' -Force")>", ZIP_FILE, ADB_DIR.string()).c_str());
     this_thread::sleep_for(6s);
 
-    fs::path extracted = ADB_DIR / TOOL_DIR;
+    fs::path extracted = ADB_DIR / "platform-tools";
     if (fs::exists(extracted)) {
-        for (const auto& f : fs::directory_iterator(extracted)) {
-            fs::path dst = ADB_DIR / f.path().filename();
-            if (fs::exists(dst)) fs::remove(dst);
-            fs::rename(f.path(), dst);
+        for (auto& f : fs::directory_iterator(extracted)) {
+            fs::path dest = ADB_DIR / f.path().filename();
+            if (fs::exists(dest)) fs::remove(dest);
+            fs::rename(f.path(), dest);
         }
         fs::remove_all(extracted);
     }
-    OK("ADB 解压完成！");
+
+    OK("ADB 已正确解压到 adb 文件夹！");
     return true;
 }
 
 void AutoSetupADB() {
     if (fs::exists(ADB_EXE)) {
-        OK("ADB 工具已存在，跳过下载");
+        OK("adb 工具已存在");
         return;
     }
 
-    WARN("未检测到 adb 文件夹，开始自动部署...");
-    if (!DownloadADB()) return;
-    if (!ExtractADB()) return;
-    fs::remove(ZIP_FILE);
-    OK("ADB 全自动部署完成！");
+    WARN("未检测到 adb 文件夹，自动部署中...");
+    if (DownloadADB() && ExtractADB()) {
+        fs::remove(ZIP_FILE);
+        OK("ADB 部署完成！");
+    }
 }
 
 void KillAdbFastboot() {
-    if (fs::exists(ADB_EXE)) {
+    if (fs::exists(ADB_EXE))
         system(format("\"{}\" kill-server >nul 2>&1", ADB_EXE.string()).c_str());
-    }
+
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
@@ -233,7 +237,7 @@ bool Func1_SetSELinux() {
 
     Loading("重启至 Fastboot");
     Exec(ADB_EXE.string(), "reboot bootloader");
-    INFO("请确认进入 Fastboot 后按回车");
+    INFO("进入 Fastboot 后按回车");
     PressAnyKeyBack();
 
     Loading("设置 SELinux 为宽容");
@@ -241,7 +245,7 @@ bool Func1_SetSELinux() {
 
     Loading("重启系统");
     Exec(FASTBOOT_EXE.string(), "continue");
-    INFO("请等待开机后按回车");
+    INFO("开机后按回车");
     PressAnyKeyBack();
 
     OK("SELinux 设置完成！");
