@@ -28,7 +28,7 @@ const fs::path ADB_EXE = ADB_DIR / "adb.exe";
 const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
-const string ZIP_FILE = cwd.string() + "\\platform-tools.zip";
+const string ZIP_FILE = "platform-tools.zip";
 
 fs::path ksum = cwd / "ksu.apk";
 fs::path ksud = cwd / "ksud";
@@ -114,14 +114,14 @@ bool DownloadADB() {
     return true;
 }
 
-// ===================== 【正确解压】直接解压到 当前目录 \\ adb =====================
 bool ExtractADB() {
     INFO("正在解压至 adb 文件夹...");
     
     if (!fs::exists(ADB_DIR))
         fs::create_directory(ADB_DIR);
 
-    system(format(R"(powershell -Command "Expand-Archive -Path '{}' -DestinationPath '{}' -Force")>", ZIP_FILE, ADB_DIR.string()).c_str());
+    string cmd = "powershell -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\"";
+    system(cmd.c_str());
     this_thread::sleep_for(6s);
 
     fs::path extracted = ADB_DIR / "platform-tools";
