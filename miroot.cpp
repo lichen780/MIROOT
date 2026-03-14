@@ -21,10 +21,9 @@ using namespace std;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
-const auto cwd = fs::current_path();
+const fs::path cwd = fs::current_path();
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
-const string ADB_EXE = "adb.exe";
 const string TOOL_DIR = "platform-tools";
 
 fs::path adb_bin = cwd / "adb.exe";
@@ -84,11 +83,12 @@ void ERR(const string& msg) { SetColor(Color::RED); println("❌ {}", msg); Rese
 void INFO(const string& msg) { SetColor(Color::BLUE); println("ℹ️  {}", msg); ResetColor(); }
 void WARN(const string& msg) { SetColor(Color::YELLOW); println("⚠️  {}", msg); ResetColor(); }
 
-// 等待回车
-void Wait() {
+// 按任意键返回菜单
+void PressAnyKeyBack() {
     SetColor(Color::GRAY);
-    cout << "\n按回车键继续...";
-    cin.ignore();
+    cout << "\n执行完成！按 回车键 返回主菜单...";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.get();
     ResetColor();
 }
 
@@ -110,7 +110,7 @@ static auto Exec(const string& bin, const string& args) -> tuple<int, string> {
     return { code, out };
 }
 
-// ===================== 自动下载 ADB 工具 =====================
+// 自动下载 ADB
 bool DownloadADB() {
     INFO("正在下载 ADB 工具...");
     HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
@@ -122,10 +122,10 @@ bool DownloadADB() {
     return true;
 }
 
-// 自动解压 ZIP
+// 自动解压
 bool ExtractZIP() {
     INFO("正在解压 ADB 工具...");
-    ShellExecuteA(0, "open", "powershell", "-Command \"Expand-Archive -Path platform-tools.zip -DestinationPath ./ -Force\"", 0, SW_HIDE);
+    system("powershell -Command \"Expand-Archive -Path platform-tools.zip -DestinationPath ./ -Force\" >nul 2>&1");
     this_thread::sleep_for(5s);
     OK("解压完成！");
     return true;
@@ -139,24 +139,30 @@ void AutoSetupADB() {
     if (!DownloadADB()) return;
     if (!ExtractZIP()) return;
 
-    fs::copy(TOOL_DIR / ADB_EXE, cwd / ADB_EXE, fs::copy_options::overwrite_existing);
-    fs::copy(TOOL_DIR / "fastboot.exe", cwd / "fastboot.exe", fs::copy_options::overwrite_existing);
-    fs::copy(TOOL_DIR / "AdbWinApi.dll", cwd / "AdbWinApi.dll", fs::copy_options::overwrite_existing);
-    fs::copy(TOOL_DIR / "AdbWinUsbApi.dll", cwd / "AdbWinUsbApi.dll", fs::copy_options::overwrite_existing);
+    fs::path tool_path = cwd / TOOL_DIR;
+    
+    if (fs::exists(tool_path / "adb.exe"))
+        fs::copy(tool_path / "adb.exe", cwd / "adb.exe", fs::copy_options::overwrite_existing);
+    if (fs::exists(tool_path / "fastboot.exe"))
+        fs::copy(tool_path / "fastboot.exe", cwd / "fastboot.exe", fs::copy_options::overwrite_existing);
+    if (fs::exists(tool_path / "AdbWinApi.dll"))
+        fs::copy(tool_path / "AdbWinApi.dll", cwd / "AdbWinApi.dll", fs::copy_options::overwrite_existing);
+    if (fs::exists(tool_path / "AdbWinUsbApi.dll"))
+        fs::copy(tool_path / "AdbWinUsbApi.dll", cwd / "AdbWinUsbApi.dll", fs::copy_options::overwrite_existing);
 
     fs::remove(ZIP_FILE);
-    fs::remove_all(TOOL_DIR);
+    fs::remove_all(tool_path);
     OK("ADB 部署完成！");
 }
 
-// ===================== 全局清理：杀adb + fastboot =====================
+// 清理进程
 void KillAdbFastboot() {
     system("adb kill-server >nul 2>&1");
     system("taskkill /f /im adb.exe >nul 2>&1");
     system("taskkill /f /im fastboot.exe >nul 2>&1");
 }
 
-// ===================== 拦截窗口关闭事件：点×也杀进程 =====================
+// 关闭窗口钩子
 BOOL WINAPI ConsoleHandler(DWORD signal) {
     if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT) {
         KillAdbFastboot();
@@ -165,7 +171,7 @@ BOOL WINAPI ConsoleHandler(DWORD signal) {
     return FALSE;
 }
 
-// ===================== 精准检测设备序列号（你要求的标准） =====================
+// 精准检测设备
 bool CheckDeviceSerial() {
     auto [code, output] = Exec(adb_bin.string(), "devices");
     istringstream iss(output);
@@ -188,7 +194,7 @@ bool CheckDeviceSerial() {
     return false;
 }
 
-// 循环等待设备（3秒一次）
+// 等待设备（3秒）
 void WaitForDeviceLoop() {
     INFO("等待设备连接，请开启USB调试...\n");
     while (true) {
@@ -221,7 +227,7 @@ void ShowDeviceInfo() {
     ResetColor();
 }
 
-// ===================== 文件检查 =====================
+// 文件检查
 bool Check1() {
     if (!fs::exists(adb_bin)) { ERR("缺少 adb 文件"); return false; }
     if (!fs::exists(fastboot_bin)) { ERR("缺少 fastboot 文件"); return false; }
@@ -236,7 +242,7 @@ bool Check2() {
     return true;
 }
 
-// ===================== 功能1：设置SELinux宽容 =====================
+// ===================== 功能1 =====================
 bool Func1_SetSELinux() {
     Title("免解BL - 设置SELinux宽容模式");
     WaitForDeviceLoop();
@@ -247,7 +253,7 @@ bool Func1_SetSELinux() {
     if (c2 != 0) return false;
 
     INFO("请确认手机已进入 Fastboot 模式");
-    Wait();
+    PressAnyKeyBack();
 
     Loading("设置 SELinux 为宽容");
     auto [c3, o3] = Exec(fastboot_bin.string(), "oem set-gpu-preemption 0 androidboot.selinux=permissive");
@@ -257,7 +263,7 @@ bool Func1_SetSELinux() {
     Exec(fastboot_bin.string(), "continue");
 
     INFO("请等待手机完全开机");
-    Wait();
+    PressAnyKeyBack();
     Loading("等待设备连接");
     Exec(adb_bin.string(), "wait-for-device");
 
@@ -265,15 +271,16 @@ bool Func1_SetSELinux() {
     auto [c5, o5] = Exec(adb_bin.string(), "shell getenforce");
     if (c5 != 0 || o5.find("Permissive") == string::npos) {
         ERR("SELinux 设置失败！");
+        PressAnyKeyBack();
         return false;
     }
 
     OK("SELinux 已设置为宽容模式");
-    system("pause >nul");
+    PressAnyKeyBack(); // 必须按回车才返回
     return true;
 }
 
-// ===================== 功能2：安装ROOT权限 =====================
+// ===================== 功能2 =====================
 bool Func2_InstallRoot() {
     Title("免解BL - 安装ROOT权限");
     WaitForDeviceLoop();
@@ -290,6 +297,7 @@ bool Func2_InstallRoot() {
     auto [c4, o4] = Exec(adb_bin.string(), "shell grep 'kernelsu' /proc/modules");
     if (c4 != 0 || o4.find("kernelsu") == string::npos) {
         ERR("ROOT模块加载失败！");
+        PressAnyKeyBack();
         return false;
     }
     OK("内核ROOT模块加载成功");
@@ -302,7 +310,7 @@ bool Func2_InstallRoot() {
     Exec(adb_bin.string(), "shell pm install -r /data/local/tmp/ksu.apk");
 
     WARN("请打开 KernelSU → 超级用户 → 允许 Shell ROOT权限");
-    Wait();
+    PressAnyKeyBack();
 
     while (true) {
         Loading("检查ROOT授权");
@@ -312,7 +320,7 @@ bool Func2_InstallRoot() {
             break;
         }
         ERR("未授权，请在KernelSU允许后重试");
-        Wait();
+        PressAnyKeyBack();
     }
 
     Loading("恢复SELinux为安全模式");
@@ -320,13 +328,15 @@ bool Func2_InstallRoot() {
     auto [rr, oo] = Exec(adb_bin.string(), "shell getenforce");
     if (oo.find("Enforcing") == string::npos) {
         ERR("SELinux恢复失败");
+        PressAnyKeyBack();
         return false;
     }
     OK("SELinux 已恢复为强制模式");
 
     OK("\n🎉 免解BL ROOT安装全部完成！");
     Exec(adb_bin.string(), "shell am start -S me.weishu.kernelsu");
-    system("pause >nul");
+    
+    PressAnyKeyBack(); // 必须按回车才返回主菜单
     return true;
 }
 
@@ -364,8 +374,8 @@ void Menu() {
         string s;
         getline(cin, s);
 
-        if (s == "1") { if (Check1()) Func1_SetSELinux(); else system("pause"); }
-        if (s == "2") { if (Check2()) Func2_InstallRoot(); else system("pause"); }
+        if (s == "1") { if (Check1()) Func1_SetSELinux(); else system("pause >nul"); }
+        if (s == "2") { if (Check2()) Func2_InstallRoot(); else system("pause >nul"); }
         if (s == "3") {
             KillAdbFastboot();
             break;
@@ -380,12 +390,9 @@ int main() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleA("免解BL ROOT工具 | 无需解锁BL直接ROOT");
     
-    // 注册关闭钩子
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-    
-    // 自动检查并下载ADB
     AutoSetupADB();
-    
     Menu();
+    
     return 0;
 }
