@@ -12,7 +12,7 @@ jobs:
   build-and-commit:
     runs-on: windows-latest
     permissions:
-      contents: write  # 必须要有写权限
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +26,15 @@ jobs:
           cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:adb-root-tool.exe
         shell: cmd
 
-      # 提交编译好的 exe 到仓库
+      # 👇 只做 UPX 压缩，不改动任何逻辑
+      - name: 下载 UPX 并压缩 exe
+        run: |
+          curl -sL https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-win64.zip -o upx.zip
+          powershell -Command "Expand-Archive upx.zip -DestinationPath ."
+          copy upx-4.2.4-win64\upx.exe .
+          upx --best adb-root-tool.exe
+        shell: cmd
+
       - name: 提交 exe 到仓库
         run: |
           git config --global user.name "GitHub Actions"
