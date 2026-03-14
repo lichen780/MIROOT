@@ -124,7 +124,7 @@ bool ExtractADB() {
 
     if (!fs::exists(ADB_DIR)) fs::create_directory(ADB_DIR);
 
-    string cmd = "powershell -NoProfile -Command \"Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\" 2>nul";
+    string cmd = "powershell -NoProfile -Command \"$ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path '" + ZIP_FILE + "' -DestinationPath '" + ADB_DIR.string() + "' -Force\" 2>nul";
     system(cmd.c_str());
     Sleep(6000);
 
@@ -307,7 +307,7 @@ void Menu() {
 }
 
 int main() {
-    system("chcp 65001 >nul");
+    SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleA("免解 BL ROOT 工具");
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
