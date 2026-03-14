@@ -28,17 +28,15 @@ jobs:
           cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:miroot.exe
         shell: cmd
 
-      # ✅ 终极稳定 UPX 压缩
+      # ✅✌️ 终极修复：强制解压到 upx 目录，绝对找到
       - name: 下载 UPX 5.1.1 并压缩
         shell: powershell
         run: |
-          iwr -Uri "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
-          Expand-Archive "upx.zip"
-          cd upx-5.1.1-win64
-          .\upx.exe --best -f ..\miroot.exe
-          cd ..
-          del upx.zip
-          rmdir upx-5.1.1-win64 -Recurse -Force
+          iwr "https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip" -OutFile "upx.zip"
+          Expand-Archive "upx.zip" "upx" -Force
+          .\upx\upx.exe --best -f miroot.exe
+          del upx.zip -Force
+          rmdir upx -Recurse -Force
 
       - name: 提交编译产物
         run: |
