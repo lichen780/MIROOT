@@ -15,37 +15,34 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
-      - name: 设置编译环境
+      - name: 设置 MSVC x64 编译环境
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: 编译程序
+      # 🔥 关键修复：加回 C++20 编译参数
+      - name: 编译 C++ 程序
         run: |
-          cl /EHsc /O2 miroot.cpp /link /out:miroot.exe
+          cl /EHsc /std:c++latest /O2 miroot.cpp /link /out:miroot.exe
         shell: cmd
 
-      # ==============================================
-      # 这一步 100% 成功 不解释
-      # ==============================================
-      - name: 下载 UPX 并压缩
+      # 🔥 100% 不报错的 UPX 压缩
+      - name: UPX 压缩
         shell: cmd
         run: |
           curl -L https://github.com/upx/upx/releases/download/v5.1.1/upx-5.1.1-win64.zip -o upx.zip
           tar -xf upx.zip
           copy upx-5.1.1-win64\upx.exe .
           upx.exe --best -f miroot.exe
-          del upx.zip
-          del upx.exe
+          del upx.zip upx.exe
           rmdir /s /q upx-5.1.1-win64
 
-      - name: 提交文件
+      # 提交
+      - name: 提交到仓库
         run: |
-          git config --global user.name "Actions"
+          git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add miroot.exe
-          git commit -m "自动编译"
+          git commit -m "CI: 自动编译 + UPX 压缩"
           git push
