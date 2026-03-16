@@ -29,6 +29,7 @@ const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
 const string GBL_EFI_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/gbl_efi_unlock.efi";
+const string KSU_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/KernelSU.apk";
 
 fs::path ksum = cwd / "KernelSU.apk";
 fs::path gbl_efi = cwd / "gbl_efi_unlock.efi";
@@ -144,6 +145,27 @@ bool DownloadGBLEFI() {
     return true;
 }
 
+bool DownloadKernelSU() {
+    INFO("正在下载 KernelSU.apk 文件...");
+    SetColor(CYAN);
+    printf("下载源：gh-proxy.org\n");
+    ResetColor();
+    
+    HRESULT res = URLDownloadToFileA(NULL, KSU_URL.c_str(), ksum.string().c_str(), 0, NULL);
+    if (res != S_OK) {
+        ERR("下载失败！请检查网络连接");
+        return false;
+    }
+    
+    if (!fs::exists(ksum) || fs::file_size(ksum) == 0) {
+        ERR("下载的文件无效或为空！");
+        return false;
+    }
+    
+    OK("KernelSU.apk 下载完成！");
+    return true;
+}
+
 bool ExtractADB() {
     INFO("正在解压至 ADB 文件夹...");
 
@@ -222,38 +244,30 @@ void WaitForDeviceLoop() {
 void ShowDeviceInfo() {
     Loading("正在获取手机信息");
 
-    auto [_, brand] = Exec(ADB_EXE.string(), "shell getprop ro.product.brand");
+    auto [_, marketname] = Exec(ADB_EXE.string(), "shell getprop ro.product.marketname");
     auto [__, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
     auto [___, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
-    auto [____, cpu] = Exec(ADB_EXE.string(), "shell getprop ro.product.board");
-    auto [_____, sdk] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.sdk");
-    auto [______, kernel] = Exec(ADB_EXE.string(), "shell uname -r");
-    auto [_______, abi] = Exec(ADB_EXE.string(), "shell getprop ro.product.cpu.abi");
-    auto [________, device] = Exec(ADB_EXE.string(), "shell getprop ro.product.device");
-    auto [_________, patch] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.security_patch");
+    auto [____, sdk] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.sdk");
+    auto [_____, patch] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.security_patch");
+    auto [______, osVersion] = Exec(ADB_EXE.string(), "shell getprop ro.mi.os.version.incremental");
+    auto [_______, socModel] = Exec(ADB_EXE.string(), "shell getprop ro.soc.model");
 
-    brand.erase(remove_if(brand.begin(), brand.end(), ::isspace), brand.end());
+    marketname.erase(remove_if(marketname.begin(), marketname.end(), ::isspace), marketname.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
     android.erase(remove_if(android.begin(), android.end(), ::isspace), android.end());
-    cpu.erase(remove_if(cpu.begin(), cpu.end(), ::isspace), cpu.end());
     sdk.erase(remove_if(sdk.begin(), sdk.end(), ::isspace), sdk.end());
-    abi.erase(remove_if(abi.begin(), abi.end(), ::isspace), abi.end());
-    device.erase(remove_if(device.begin(), device.end(), ::isspace), device.end());
     patch.erase(remove_if(patch.begin(), patch.end(), ::isspace), patch.end());
-
-    kernel.erase(remove_if(kernel.begin(), kernel.end(), [](int c) {
-        return c == '\n' || c == '\r';
-    }), kernel.end());
+    osVersion.erase(remove_if(osVersion.begin(), osVersion.end(), ::isspace), osVersion.end());
+    socModel.erase(remove_if(socModel.begin(), socModel.end(), ::isspace), socModel.end());
 
     SetColor(YELLOW);
-    printf("📱 手机品牌：%s\n", brand.c_str());
+    printf("📱 市场名称：%s\n", marketname.c_str());
     printf("📱 手机型号：%s\n", model.c_str());
-    printf("🔧 产品代号：%s\n", device.c_str());
-    printf("🤖 安卓版本：%s (API %s)\n", android.c_str(), sdk.c_str());
-    printf("⚙️ 处理器：%s\n", cpu.c_str());
-    printf("🧩 CPU 架构：%s\n", abi.c_str());
-    printf("🧠 内核版本：%s\n", kernel.c_str());
+    printf("⚙️ CPU 型号：%s\n", socModel.c_str());
+    printf("🤖 安卓版本：%s\n", android.c_str());
+    printf("🔧 SDK 版本：%s\n", sdk.c_str());
     printf("🛡️ 安全补丁：%s\n", patch.c_str());
+    printf("📲 OS 版本：%s\n", osVersion.c_str());
     printf("\n");
     ResetColor();
 }
@@ -277,13 +291,28 @@ bool Check2() {
         Title("文件缺失提示");
         WARN("未检测到 KernelSU.apk 文件！");
         cout << endl;
-        INFO("请自行下载 KernelSU.apk，并保存到软件当前目录");
-        INFO("文件名必须为：KernelSU.apk");
+        INFO("正在尝试自动下载...");
         cout << endl;
-        INFO("下载地址：https://github.com/tiann/KernelSU/releases");
-        cout << endl;
-        PressAnyKeyBack();
-        return false;
+        
+        if (DownloadKernelSU()) {
+            OK("文件已准备就绪！");
+            Sleep(1000);
+            return true;
+        } else {
+            cout << endl;
+            WARN("自动下载失败，请手动下载！");
+            cout << endl;
+            INFO("下载地址：");
+            SetColor(CYAN);
+            printf("https://github.com/tiann/KernelSU/releases\n");
+            ResetColor();
+            cout << endl;
+            INFO("下载后请将文件保存到软件当前目录");
+            INFO("文件名必须为：KernelSU.apk");
+            cout << endl;
+            PressAnyKeyBack();
+            return false;
+        }
     }
     return true;
 }
