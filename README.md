@@ -109,7 +109,7 @@ ADB → 系统服务调用 → MQSAS 服务 → 分区写入 → BL 解锁
 
 #### 方式一：直接使用（推荐）
 
-1. 下载最新版本的 [Release](https://github.com/lichen780/MIROOT/releases)
+1. 下载最新版本的 [MIROOT](https://github.com/lichen780/MIROOT/blob/main/%E5%85%8D%E8%A7%A3%20BL%20ROOT%20%E5%B7%A5%E5%85%B7.exe)
 2. 解压到任意目录
 3. 双击运行 `MIROOT.exe`
 4. 按提示操作
