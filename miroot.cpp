@@ -28,6 +28,7 @@ const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
+const string GBL_EFI_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/gbl_efi_unlock.efi";
 
 fs::path ksum = cwd / "KernelSU.apk";
 fs::path gbl_efi = cwd / "gbl_efi_unlock.efi";
@@ -119,6 +120,27 @@ bool DownloadADB() {
     HRESULT res = URLDownloadToFileA(NULL, ADB_URL.c_str(), ZIP_FILE.c_str(), 0, NULL);
     if (res != S_OK) { ERR("下载失败！请检查网络"); return false; }
     OK("ADB 下载完成！");
+    return true;
+}
+
+bool DownloadGBLEFI() {
+    INFO("正在下载 gbl_efi_unlock.efi 文件...");
+    SetColor(CYAN);
+    printf("下载源：gh-proxy.org\n");
+    ResetColor();
+    
+    HRESULT res = URLDownloadToFileA(NULL, GBL_EFI_URL.c_str(), gbl_efi.string().c_str(), 0, NULL);
+    if (res != S_OK) {
+        ERR("下载失败！请检查网络连接");
+        return false;
+    }
+    
+    if (!fs::exists(gbl_efi) || fs::file_size(gbl_efi) == 0) {
+        ERR("下载的文件无效或为空！");
+        return false;
+    }
+    
+    OK("gbl_efi_unlock.efi 下载完成！");
     return true;
 }
 
@@ -274,11 +296,28 @@ bool Check3() {
         Title("文件缺失提示");
         WARN("未检测到 gbl_efi_unlock.efi 文件！");
         cout << endl;
-        INFO("请自行下载 gbl_efi_unlock.efi，并保存到软件当前目录");
-        INFO("文件名必须为：gbl_efi_unlock.efi");
+        INFO("正在尝试自动下载...");
         cout << endl;
-        PressAnyKeyBack();
-        return false;
+        
+        if (DownloadGBLEFI()) {
+            OK("文件已准备就绪！");
+            Sleep(1000);
+            return true;
+        } else {
+            cout << endl;
+            WARN("自动下载失败，请手动下载！");
+            cout << endl;
+            INFO("下载地址：");
+            SetColor(CYAN);
+            printf("https://github.com/lichen780/MIROOT/main/gbl_efi_unlock.efi\n");
+            ResetColor();
+            cout << endl;
+            INFO("下载后请将文件保存到软件当前目录");
+            INFO("文件名必须为：gbl_efi_unlock.efi");
+            cout << endl;
+            PressAnyKeyBack();
+            return false;
+        }
     }
     return true;
 }
@@ -551,7 +590,7 @@ void DrawAnimatedMenu() {
     SetColor(GREEN);
     printf("      |   [1]  免解 BL ROOT                                  |\n");
     SetColor(YELLOW);
-    printf("      |   [2]  骁龙 8E5 解 BL 锁                              |\n");
+    printf("      |   [2]  骁龙 8E5 解 BL 锁                             |\n");
     SetColor(RED);
     printf("      |   [3]  退出程序                                      |\n");
     SetColor(WHITE);
