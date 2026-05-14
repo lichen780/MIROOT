@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include <windows.h>
 #include <filesystem>
 #include <iostream>
@@ -254,13 +255,13 @@ void WaitForDeviceLoop() {
 void ShowDeviceInfo() {
     Loading("正在获取手机信息");
 
-    auto [_, marketname] = Exec(ADB_EXE.string(), "shell getprop ro.product.marketname");
-    auto [__, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
-    auto [___, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
-    auto [____, sdk] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.sdk");
-    auto [_____, patch] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.security_patch");
-    auto [______, osVersion] = Exec(ADB_EXE.string(), "shell getprop ro.mi.os.version.incremental");
-    auto [_______, socModel] = Exec(ADB_EXE.string(), "shell getprop ro.soc.model");
+    auto [_c1, marketname] = Exec(ADB_EXE.string(), "shell getprop ro.product.marketname");
+    auto [_c2, model] = Exec(ADB_EXE.string(), "shell getprop ro.product.model");
+    auto [_c3, android] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.release");
+    auto [_c4, sdk] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.sdk");
+    auto [_c5, patch] = Exec(ADB_EXE.string(), "shell getprop ro.build.version.security_patch");
+    auto [_c6, osVersion] = Exec(ADB_EXE.string(), "shell getprop ro.mi.os.version.incremental");
+    auto [_c7, socModel] = Exec(ADB_EXE.string(), "shell getprop ro.soc.model");
 
     marketname.erase(remove_if(marketname.begin(), marketname.end(), ::isspace), marketname.end());
     model.erase(remove_if(model.begin(), model.end(), ::isspace), model.end());
@@ -283,7 +284,7 @@ void ShowDeviceInfo() {
 }
 
 bool IsKsuInstalled() {
-    auto [code, _] = Exec(ADB_EXE.string(), "shell pm list packages | findstr me.weishu.kernelsu");
+    auto [code, _out] = Exec(ADB_EXE.string(), "shell pm list packages | findstr me.weishu.kernelsu");
     return code == 0;
 }
 
@@ -536,6 +537,42 @@ string GetDeviceMarketName() {
     return output;
 }
 
+// ==================== 设备机型定义 ====================
+
+struct DeviceModel_8E {
+    const char* name;
+    const char* folder;
+    const char* boot_folder;
+    const char* codename;
+};
+
+const DeviceModel_8E MODELS_8E[] = {
+    {"Redmi K80 Pro",       "Redmik80pro",    "Phone",   "vermeer_apollo"},
+    {"Redmi K90",           "Redmik90",       "Phone",   "dada"},
+    {"Xiaomi 15",           "Xiaomi15",       "Phone",   "dada"},
+    {"Xiaomi 15 Pro",       "Xiaomi15pro",    "Phone",   "haotian"},
+    {"Xiaomi 15 Ultra",     "Xiaomi15ultra",  "Phone",   "shennong"},
+    {"Xiaomi Pad 8 Pro",    "Xiaomipad8pro",  "Tablet",  "pandora"},
+};
+const int MODELS_8E_COUNT = sizeof(MODELS_8E) / sizeof(MODELS_8E[0]);
+
+struct DeviceModel_8G3 {
+    const char* name;
+    const char* folder;
+    const char* codename;
+};
+
+const DeviceModel_8G3 MODELS_8G3[] = {
+    {"Redmi K70 Pro",       "Redmik70pro",     "shennong"},
+    {"Redmi K80",           "Redmik80",        "zhenniao"},
+    {"Xiaomi 14",           "Xiaomi14",        "houji"},
+    {"Xiaomi 14 Pro",       "Xiaomi14pro",     "shennong"},
+    {"Xiaomi 14 Ultra",     "Xiaomi14ultra",   "aurora"},
+    {"Xiaomi MIX Flip",     "Xiaomimixflip",   "ruyi"},
+    {"Xiaomi MIX Fold4",    "Xiaomimixfold4",  "goku"},
+};
+const int MODELS_8G3_COUNT = sizeof(MODELS_8G3) / sizeof(MODELS_8G3[0]);
+
 int AutoDetectModel_8E() {
     string codename = GetDeviceCodename();
     string marketname = GetDeviceMarketName();
@@ -622,7 +659,7 @@ bool Func1_SetSELinux() {
 
     if (WaitDeviceOnline(30)) {
         Loading("正在检测 SELinux 模式");
-        auto [_, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
+        auto [_sc, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
 
         selinux.erase(remove_if(selinux.begin(), selinux.end(), [](char c) {
             return c == '\n' || c == '\r' || c == ' ';
@@ -779,23 +816,6 @@ bool Func3_UnlockBL_8E5() {
 
 // ==================== 功能 3: 骁龙 8E 解 BL 锁 ====================
 
-struct DeviceModel_8E {
-    const char* name;
-    const char* folder;
-    const char* boot_folder;
-    const char* codename;
-};
-
-const DeviceModel_8E MODELS_8E[] = {
-    {"Redmi K80 Pro",       "Redmik80pro",    "Phone",   "vermeer_apollo"},
-    {"Redmi K90",           "Redmik90",       "Phone",   "dada"},
-    {"Xiaomi 15",           "Xiaomi15",       "Phone",   "dada"},
-    {"Xiaomi 15 Pro",       "Xiaomi15pro",    "Phone",   "haotian"},
-    {"Xiaomi 15 Ultra",     "Xiaomi15ultra",  "Phone",   "shennong"},
-    {"Xiaomi Pad 8 Pro",    "Xiaomipad8pro",  "Tablet",  "pandora"},
-};
-const int MODELS_8E_COUNT = sizeof(MODELS_8E) / sizeof(MODELS_8E[0]);
-
 bool Func4_UnlockBL_8E() {
     Title("骁龙 8E - 解 BL 锁");
 
@@ -934,7 +954,7 @@ bool Func4_UnlockBL_8E() {
     Title("骁龙 8E - 解 BL 锁 - 步骤 3/6");
     Loading("设置 SELinux 为宽容模式");
     ExecFastbootWithFeedback("oem set-gpu-preemption 0 androidboot.selinux=permissive", 15);
-    auto [fbContCode_8e, _] = ExecFastbootWithFeedback("continue", 10);
+    auto [fbContCode_8e, _fb8e] = ExecFastbootWithFeedback("continue", 10);
     if (fbContCode_8e == -2) {
         WARN("fastboot continue 超时，尝试 reboot...");
         ExecFastbootWithFeedback("reboot", 10);
@@ -947,7 +967,7 @@ bool Func4_UnlockBL_8E() {
     }
 
     // 检查 SELinux
-    auto [_, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
+    auto [_sc, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
     selinux.erase(remove_if(selinux.begin(), selinux.end(), ::isspace), selinux.end());
     if (selinux != "Permissive" && selinux != "permissive") {
         ERR("SELinux 未设置为宽容模式，当前：" + selinux);
@@ -1036,23 +1056,6 @@ bool Func4_UnlockBL_8E() {
 }
 
 // ==================== 功能 4: 骁龙 8G3 解 BL 锁 ====================
-
-struct DeviceModel_8G3 {
-    const char* name;
-    const char* folder;
-    const char* codename;
-};
-
-const DeviceModel_8G3 MODELS_8G3[] = {
-    {"Redmi K70 Pro",       "Redmik70pro",     "shennong"},
-    {"Redmi K80",           "Redmik80",        "zhenniao"},
-    {"Xiaomi 14",           "Xiaomi14",        "houji"},
-    {"Xiaomi 14 Pro",       "Xiaomi14pro",     "shennong"},
-    {"Xiaomi 14 Ultra",     "Xiaomi14ultra",   "aurora"},
-    {"Xiaomi MIX Flip",     "Xiaomimixflip",   "ruyi"},
-    {"Xiaomi MIX Fold4",    "Xiaomimixfold4",  "goku"},
-};
-const int MODELS_8G3_COUNT = sizeof(MODELS_8G3) / sizeof(MODELS_8G3[0]);
 
 bool Func5_UnlockBL_8G3() {
     Title("骁龙 8G3 - 解 BL 锁");
@@ -1192,7 +1195,7 @@ bool Func5_UnlockBL_8G3() {
     Title("骁龙 8G3 - 解 BL 锁 - 步骤 3/8");
     Loading("设置 SELinux 为宽容模式");
     ExecFastbootWithFeedback("oem set-gpu-preemption 0 androidboot.selinux=permissive", 15);
-    auto [fbContCode_8g3, _] = ExecFastbootWithFeedback("continue", 10);
+    auto [fbContCode_8g3, _fb8g3] = ExecFastbootWithFeedback("continue", 10);
     if (fbContCode_8g3 == -2) {
         WARN("fastboot continue 超时，尝试 reboot...");
         ExecFastbootWithFeedback("reboot", 10);
@@ -1205,7 +1208,7 @@ bool Func5_UnlockBL_8G3() {
     }
 
     // 检查 SELinux
-    auto [_, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
+    auto [_sc, selinux] = Exec(ADB_EXE.string(), "shell getenforce");
     selinux.erase(remove_if(selinux.begin(), selinux.end(), ::isspace), selinux.end());
     if (selinux != "Permissive" && selinux != "permissive") {
         ERR("SELinux 未设置为宽容模式，当前：" + selinux);
