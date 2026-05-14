@@ -45,6 +45,13 @@
 
 仅支持骁龙 8 Elite (Gen 5) 平台设备，需 `gbl_efi_unlock.efi` 文件。
 
+| 系列 | 机型 |
+|------|------|
+| Xiaomi | 17、17 Pro、17 Pro Max |
+| Redmi | K90 Pro Max |
+
+> 基础版 Redmi K90 不支持（非骁龙 8 Elite 处理器）
+
 ### 骁龙 8E 解 BL 锁
 
 | 系列 | 机型 |
