@@ -30,7 +30,7 @@ const fs::path FASTBOOT_EXE = ADB_DIR / "fastboot.exe";
 
 const string ADB_URL = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 const string ZIP_FILE = "platform-tools.zip";
-const string GBL_EFI_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/gbl_efi_unlock.efi";
+const string GBL_EFI_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/8e5-unlock/gbl_efi_unlock.efi";
 const string KSU_URL = "https://gh-proxy.org/https://github.com/lichen780/MIROOT/raw/main/KernelSU.apk";
 
 fs::path ksum = cwd / "KernelSU.apk";
@@ -349,7 +349,7 @@ bool Check3() {
             cout << endl;
             INFO("下载地址：");
             SetColor(CYAN);
-            printf("https://github.com/lichen780/MIROOT/raw/main/gbl_efi_unlock.efi\n");
+            printf("https://github.com/lichen780/MIROOT/blob/main/8e5-unlock/gbl_efi_unlock.efi\n");
             ResetColor();
             cout << endl;
             INFO("下载后请将文件保存到 8e5-unlock 文件夹内");
@@ -713,7 +713,22 @@ bool Func2_InstallKernelSU() {
 bool Func3_UnlockBL_8E5() {
     Title("骁龙 8E5 - 解 BL 锁");
 
-    INFO("本功能适用于骁龙 8E5 设备解锁 BL");
+    INFO("正在自动识别设备...");
+    WaitForDeviceLoop();
+    ShowDeviceInfo();
+
+    string marketName = GetDeviceMarketName();
+    string codename = GetDeviceCodename();
+    SetColor(WHITE);
+    printf("      ┌─────────────────────────────────────────────────────┐\n");
+    printf("      │                                                     │\n");
+    SetColor(GREEN);
+    printf("      │   已识别到设备: %-36s│\n", marketName.c_str());
+    printf("      │   设备代号:     %-36s│\n", codename.c_str());
+    SetColor(WHITE);
+    printf("      │                                                     │\n");
+    printf("      └─────────────────────────────────────────────────────┘\n\n");
+
     INFO("操作前请确保：");
     SetColor(YELLOW);
     printf("  1. 手机 USB 调试已打开\n");
@@ -721,10 +736,14 @@ bool Func3_UnlockBL_8E5() {
     printf("  3. gbl_efi_unlock.efi 文件已放置在 8e5-unlock 文件夹内\n");
     ResetColor();
     cout << endl;
-    INFO("确认以上条件后，按回车键开始操作...");
-    cin.get();
 
-    WaitForDeviceLoop();
+    SetColor(CYAN);
+    printf("      确认继续操作？ [Y] 确认 / [0] 返回: ");
+    ResetColor();
+    string c;
+    cin >> c;
+    cin.ignore();
+    if (c == "0") return true;
     Loading("重启至 Fastboot 模式");
     Exec(ADB_EXE.string(), "reboot bootloader");
 
@@ -821,6 +840,7 @@ bool Func4_UnlockBL_8E() {
 
     INFO("正在自动识别设备...");
     WaitForDeviceLoop();
+    ShowDeviceInfo();
 
     int detected = AutoDetectModel_8E();
     string marketName = GetDeviceMarketName();
@@ -1062,6 +1082,7 @@ bool Func5_UnlockBL_8G3() {
 
     INFO("正在自动识别设备...");
     WaitForDeviceLoop();
+    ShowDeviceInfo();
 
     int detected = AutoDetectModel_8G3();
     string marketName = GetDeviceMarketName();
