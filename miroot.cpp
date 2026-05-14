@@ -1434,7 +1434,7 @@ void Menu() {
 
 int main() {
     system("chcp 65001 >nul");
-    SetConsoleTitleW(L"小米解锁 BL ROOT 工具");
+    SetConsoleTitleW(L"\u5C0F\u7C73\u89E3\u9501 BL ROOT \u5DE5\u5177");
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     AutoSetupADB();
     Menu();
